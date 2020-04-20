@@ -47,4 +47,4 @@ def query():
     current_app.logger.info('Found {} records. '.format(length))
 
     return make_response(
-        {'message': 'got ' + str(length) + ' result', 'data': '\n'.join([str(record) for record in data])}, 201)
+        {'message': 'got ' + str(length) + ' result', 'data': '\n'.join([str(record) for record in data[:100]])}, 201)

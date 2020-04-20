@@ -3,7 +3,7 @@ from pymongo.errors import PyMongoError
 
 import threading
 
-from crawler.constants import lessor_sex_dict
+from crawler.constants import lessor_sex_dict, lesser_role_dict
 
 lock = threading.Lock()
 
@@ -90,8 +90,14 @@ class MongoDbManager:
 
         if pattern['sex'] != '0':  # match patterns in constants.py
             parsed_pattern.append({'sex_requirement': pattern['sex']})
-        if pattern['role_must_be_owner'] == '1':
+        if pattern['role_type'] == '1':
             parsed_pattern.append({'linkman_role': '0'})
+        if pattern['role_type'] == '0':
+            role_pattern = []
+            for key, value in lesser_role_dict.items():
+                if value!= '0' and key != 'unknown':
+                    role_pattern.append(value)
+            parsed_pattern.append({'linkman_role': {'$regex': '|'.join(role_pattern)}})
         if pattern['tel'] != '':
             parsed_pattern.append({'tel': {'$regex': '.*' + ''.join(pattern['tel']) + '.*'}})
 

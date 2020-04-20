@@ -69,8 +69,3 @@ lessor_sex_dict = {
     '媽媽': '2',
     'unknown': '-1',
 }
-
-agency_dict = {
-    '全業房屋': 0,
-}
-

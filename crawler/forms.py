@@ -38,16 +38,16 @@ class QueryForm(FlaskForm):
         validators=[DataRequired()],
     )
 
-    role_must_be_owner = fields.SelectField(
-        '是否限定屋主刊登',
+    role_type = fields.SelectField(
+        '刊登者角色',
         choices=[
-            ('0', '不限'),
-            ('1', '是'),
+            ('0', '非屋主'),
+            ('1', '屋主'),
         ],
     )
 
     linkman = fields.StringField(
-        '聯繫人/屋主 姓名(最長四個字符)',
+        '聯繫人/屋主 姓名(最長四個字符，會使屋主性別選項失效)',
         [validators.Length(max=4, message='Please provide at most 4 characters')]
     )
 
