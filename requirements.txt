@@ -1,0 +1,6 @@
+pymongo==3.9.0
+wtforms==2.2.1
+flask==1.1.1
+beautifulsoup4==4.6.0
+Flask-WTF==0.14.2
+requests==2.20.0
