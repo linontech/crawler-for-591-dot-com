@@ -1,5 +1,6 @@
 import pymongo
 from pymongo.errors import PyMongoError
+from pymongo import errors
 
 import threading
 
@@ -29,8 +30,14 @@ class MongoDbManager:
                     cls.current_app = app
                     cls.__client = pymongo.MongoClient(
                         app.config.get('MONGODB_SERVER'),
-                        app.config.get('MONGODB_PORT')
+                        app.config.get('MONGODB_PORT'),
+                        serverSelectionTimeoutMS=2000
                     )
+                    try:
+                        cls.current_app.logger.info(cls.__client.server_info())
+                    except errors.ServerSelectionTimeoutError as err:
+                        cls.current_app.logger.error("Connection to MongoDB Error", stack_info=err)
+                        cls.__client = None
                     cls.db_name = app.config.get('MONGODB_DATABASE')
                     cls.collection_name = app.config.get('MONGODB_COLLECTION')
 
@@ -67,7 +74,7 @@ class MongoDbManager:
     def update(self, houses):
         """
         method for inserting houses
-        :param house: houses records
+        :param houses: houses records
         :return:
         """
         res = []
@@ -95,7 +102,11 @@ class MongoDbManager:
         if pattern['role_type'] == '0':
             role_pattern = []
             for key, value in lesser_role_dict.items():
+<<<<<<< Updated upstream
                 if value!= '0' and key != 'unknown':
+=======
+                if value != '0' and key != 'unknown':
+>>>>>>> Stashed changes
                     role_pattern.append(value)
             parsed_pattern.append({'linkman_role': {'$regex': '|'.join(role_pattern)}})
         if pattern['tel'] != '':
@@ -127,6 +138,9 @@ class MongoDbManager:
         except PyMongoError as e:
             self.current_app.logger.error('insert_many() error', e)
         return []
+
+    def get_client(self):
+        return self.__client
 
     def _query_by_id(self, _id):
         cursor = self.__collection.find({'id': _id})

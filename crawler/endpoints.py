@@ -38,13 +38,15 @@ def query():
     payload = request.json or request.form
     current_app.logger.info('the payload from frontend: {}'.format(str(payload.to_dict())))
 
-    client = MongoDbManager.get_instance(current_app)
-    client.check_target_db()
-    client.check_target_collection()
+    manager = MongoDbManager.get_instance(current_app)
+    manager.check_target_db()
+    manager.check_target_collection()
 
-    data = client.query_by_pattern(payload.to_dict())
-    length = data.count()
-    current_app.logger.info('Found {} records. '.format(length))
+    length, data = 0, []
+    if manager.get_client() is not None:
+        data = manager.query_by_pattern(payload.to_dict())
+        length = data.count()
+        current_app.logger.info('Found {} records. '.format(length))
 
     return make_response(
         {'message': 'got ' + str(length) + ' result', 'data': '\n'.join([str(record) for record in data[:100]])}, 201)

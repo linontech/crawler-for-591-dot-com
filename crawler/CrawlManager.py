@@ -34,7 +34,6 @@ class CrawlManager:
         """
         CrawlManager multi-thread
         """
-        payloads = payloads[10:20]
         self.current_app.logger.info(f'CrawlManager run() is going to make {len(payloads)} requests. ')
         if not self.RUNNING:
             self.RUNNING = True
