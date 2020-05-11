@@ -24,10 +24,10 @@ def index():
 @BP.route("/start", methods=["POST"])
 def start_crawl():
     crawl_manager = CrawlManager.get_instance()
-    if not crawl_manager.check_status():
+    if not crawl_manager.is_running():
         payloads = crawl_manager.create_payloads()
-        crawl_manager.run(payloads)
-        data = {'message': 'crawled succeed.', 'code': 'SUCCESS'}
+        message = crawl_manager.run(payloads)
+        data = {'message': message, 'code': 'SUCCESS'}
     else:
         data = {'message': 'crawler exists...', 'code': 'SUCCESS'}
     return make_response(data, 201)

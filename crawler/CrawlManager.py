@@ -34,6 +34,8 @@ class CrawlManager:
     def run(self, payloads):
         """
         CrawlManager multi-thread
+        :param payloads: payloads
+        :return: message
         """
         current_app.logger.info(f'CrawlManager run() is going to make {len(payloads)} requests. ')
         if not self.RUNNING:
@@ -44,21 +46,23 @@ class CrawlManager:
                 for index in range(0, len(payloads), self.MAX_WORKERS):
                     if self.ATTEMPT_STOP:
                         end = time.time()
-                        current_app.logger.info(f'get_houses() stopped and spent: {end - start} seconds. ')
+                        current_app.logger.info(f'CrawlManager run() stopped and spent: {end - start} seconds. ')
                         self.RUNNING = False
-                        return
+                        return 'stopped'
                     futures = [executor.submit(get_houses, payload, current_app._get_current_object())
                                for payload in payloads[index: index+5]]
                     for future in concurrent.futures.as_completed(futures):
                         try:
                             result_ids = future.result()
                         except Exception as e:
-                            current_app.logger.error('get_houses() error: ', e)
+                            current_app.logger.error('CrawlManager run() error: ', e)
                         else:
-                            current_app.logger.info('get_houses() and save success ' + str(result_ids))
+                            current_app.logger.info('CrawlManager run() and save success ' + str(result_ids))
             end = time.time()
-            current_app.logger.info(f'get_houses() done spent: {end - start} seconds. ')
+            current_app.logger.info(f'CrawlManager run() done spent: {end - start} seconds. ')
             self.RUNNING = False
+
+        return 'finished'
 
     def stop(self):
         """
@@ -71,7 +75,7 @@ class CrawlManager:
             self.ATTEMPT_STOP = True
         return True
 
-    def check_status(self):
+    def is_running(self):
         """
         check status of CrawlManager
         :return: status

@@ -29,12 +29,12 @@ def get_houses(payload, app):
     :return:
     """
     app.logger.info('get_houses() request sending payload: {}'.format(payload))
-    session = requests.Session()
-    _set_csrf_token(session)
 
     response = None
     inserted_ids, data = [], {}
     try:
+        session = requests.Session()
+        _set_csrf_token(session)
         response = session.get(API_URL, params=payload, headers=HEADERS)
         if response.status_code == 200:
             data = response.json()['data']
@@ -63,8 +63,8 @@ def get_houses_nums(payload):
     """
     current_app.logger.info('get_houses_nums() payload: {}'.format(payload))
     response, num = None, 0
-    session = requests.Session()
     try:
+        session = requests.Session()
         _set_csrf_token(session)
         response = session.get(API_URL, params=payload, headers=HEADERS)
         if response.status_code == 200:
@@ -90,7 +90,9 @@ def _get_tel(house, app):
     response = None
     tel = ''
     try:
-        response = requests.get(WEB_URL_FORMAT_STR.format(house['post_id']), headers=HEADERS)
+        session = requests.Session()
+        _set_csrf_token(session)
+        response = session.get(WEB_URL_FORMAT_STR.format(house['post_id']), headers=HEADERS)
         if response.status_code == 200:
             html = response.content
             soup = BeautifulSoup(html, 'html.parser')
