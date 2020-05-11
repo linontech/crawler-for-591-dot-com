@@ -33,6 +33,15 @@ def start_crawl():
     return make_response(data, 201)
 
 
+@BP.route("/stop", methods=["POST"])
+def stop_crawl():
+    crawl_manager = CrawlManager.get_instance()
+    if crawl_manager.stop():
+        return make_response({'message': 'stopped.'}, 201)
+    else:
+        return make_response({'message': 'Nothing to stop.'}, 201)
+
+
 @BP.route("/search", methods=["POST"])
 def query():
     payload = request.json or request.form

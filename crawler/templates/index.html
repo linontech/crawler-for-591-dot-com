@@ -8,6 +8,7 @@
     </head>
     <body>
     <button type='button' class='start_button' href='/start'>Start</button>
+    <button type='button' class='stop_button' href='/stop'>Stop</button>
     <pre class='crawl_status'>Crawl Status: </pre>
 	<form class='search' method='POST' action='/search' onsubmit="return submitForm()">
         <ul>
@@ -33,8 +34,19 @@
                    console.log(response.message);
                    $('.crawl_status').text('Status: ' + response.message);
                }).fail(function() {
-                   console.log('error');
+                   console.log('start error');
                    $('.crawl_status').text('Status: crawler encounter error.');
+               });
+       });
+       $('.stop_button').on('click', function(){
+           $('.crawl_status').text('Status: stopping.');
+           $.post('/stop', {},
+               function(response) {
+                   console.log(response.message);
+                   $('.crawl_status').text('Status: ' + response.message);
+               }).fail(function() {
+                   console.log('stop error');
+                   $('.crawl_status').text('Status: crawler encounter error when stopping.');
                });
        });
        function submitForm() {

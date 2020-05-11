@@ -11,10 +11,10 @@ lock = threading.Lock()
 class CrawlManager:
     DELAY = 0.6
     MAX_WORKERS = 5
-    RUNNING = False
     DEFAULT_PAYLOAD = {'is_new_list': '1', 'type': '1', 'kind': '0', 'searchtype': 1}
+    ATTEMPT_STOP = False
+    RUNNING = False
     __instance = None
-    __thread_pool = None
 
     def __init__(self):
         raise SyntaxError('can not instance, please use get_instance')
@@ -37,22 +37,39 @@ class CrawlManager:
         """
         current_app.logger.info(f'CrawlManager run() is going to make {len(payloads)} requests. ')
         if not self.RUNNING:
-            self.RUNNING = True
-            self.__thread_pool = concurrent.futures.ThreadPoolExecutor(max_workers=self.MAX_WORKERS)
             start = time.time()
-            with self.__thread_pool as executor:
-                futures = [executor.submit(get_houses, payload, current_app._get_current_object())
-                           for payload in payloads]
-                for future in concurrent.futures.as_completed(futures):
-                    try:
-                        result_ids = future.result()
-                    except Exception as e:
-                        current_app.logger.error('parse houses error: ', e)
-                    else:
-                        current_app.logger.info('parse houses and save success ' + str(result_ids))
+            self.ATTEMPT_STOP = False
+            self.RUNNING = True
+            with concurrent.futures.ThreadPoolExecutor(max_workers=self.MAX_WORKERS) as executor:
+                for index in range(0, len(payloads), self.MAX_WORKERS):
+                    if self.ATTEMPT_STOP:
+                        end = time.time()
+                        current_app.logger.info(f'get_houses() stopped and spent: {end - start} seconds. ')
+                        self.RUNNING = False
+                        return
+                    futures = [executor.submit(get_houses, payload, current_app._get_current_object())
+                               for payload in payloads[index: index+5]]
+                    for future in concurrent.futures.as_completed(futures):
+                        try:
+                            result_ids = future.result()
+                        except Exception as e:
+                            current_app.logger.error('get_houses() error: ', e)
+                        else:
+                            current_app.logger.info('get_houses() and save success ' + str(result_ids))
             end = time.time()
-            current_app.logger.info(f'_reconstruct_houses() spent: {end - start} seconds. ')
+            current_app.logger.info(f'get_houses() done spent: {end - start} seconds. ')
             self.RUNNING = False
+
+    def stop(self):
+        """
+        stop function
+        :return: true for successful stopped
+        """
+        if not self.RUNNING:
+            return False
+        while self.RUNNING:
+            self.ATTEMPT_STOP = True
+        return True
 
     def check_status(self):
         """

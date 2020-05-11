@@ -1,5 +1,6 @@
 import concurrent.futures
 import time
+from json import JSONDecodeError
 
 import requests
 from bs4 import BeautifulSoup
@@ -31,38 +32,28 @@ def get_houses(payload, app):
     session = requests.Session()
     _set_csrf_token(session)
 
-    response = session.get(API_URL, params=payload, headers=HEADERS)
+    response = None
+    inserted_ids, data = [], {}
     try:
-        data = response.json()['data']
-    except KeyError:
-        app.logger.error('response.json()["data"]: {}'.format(response.json()["data"]))
-        app.logger.error('Cannot get data from response.json["data"]')
-    except Exception:
-        app.logger.error('response: {}'.format(response.text))
-        raise
+        response = session.get(API_URL, params=payload, headers=HEADERS)
+        if response.status_code == 200:
+            data = response.json()['data']
+        else:
+            app.logger.info('get_houses() Request fail with http status code = {}'.format(response.status_code))
+    except requests.exceptions.RequestException as e:
+        app.logger.error('get_houses() Http Error: ', e)
+    except KeyError as e:
+        app.logger.error('get_houses() KeyError Cannot get data from response.json["data"]:\n {}'.format(response.text.replace('\n', '')), e)
+    except JSONDecodeError as e:
+        app.logger.error('get_houses() JSONDecodeError', e)
     else:
         houses = data.get('data', [])
         houses = _reconstruct_houses(houses, app)
         inserted_ids = _save_to_mongo(houses, app)
-        app.logger.info('{} records crawled and saved into MongoDB.'.format(
+        app.logger.info('{} records crawled and saved into MongoDB. ids: '.format(
             len([inserted_id for inserted_id in inserted_ids if inserted_id is not None])))
+    finally:
         return inserted_ids
-
-
-def _get_tel(house):
-    """
-    get phone number
-    :param house:
-    :return:
-    """
-    target = WEB_URL_FORMAT_STR.format(house['post_id'])
-    response = requests.get(target, headers=HEADERS)
-    html = response.content
-    soup = BeautifulSoup(html, 'html.parser')
-    tel = soup.find_all('span', attrs={'data-value': True})
-    if tel:
-        return tel[0]['data-value'].replace('-', '')
-    return ''
 
 
 def get_houses_nums(payload):
@@ -71,12 +62,51 @@ def get_houses_nums(payload):
     :return:
     """
     current_app.logger.info('get_houses_nums() payload: {}'.format(payload))
+    response, num = None, 0
     session = requests.Session()
-    _set_csrf_token(session)
-    response = session.get(API_URL, params=payload, headers=HEADERS)
-    num = int(response.json()['records'].replace(',', ''))
+    try:
+        _set_csrf_token(session)
+        response = session.get(API_URL, params=payload, headers=HEADERS)
+        if response.status_code == 200:
+            num = int(response.json()['records'].replace(',', ''))
+        else:
+            current_app.logger.info('get_houses_nums() Request fail with http status code = {}'.format(response.status_code))
+    except requests.exceptions.RequestException as e:
+        current_app.logger.error('get_houses_nums() Http Error: ', e)
+    except KeyError as e:
+        current_app.logger.error('get_houses_nums() KeyError Cannot get data from tel[0]["data-value"]:\n {}'.format(response.text.replace('\n', '')), e)
+    except JSONDecodeError as e:
+        current_app.logger.error('get_houses_nums() JSONDecodeError', e)
+    finally:
+        return num
 
-    return num
+
+def _get_tel(house, app):
+    """
+    thread function to get phone number
+    :param house:
+    :return:
+    """
+    response = None
+    tel = ''
+    try:
+        response = requests.get(WEB_URL_FORMAT_STR.format(house['post_id']), headers=HEADERS)
+        if response.status_code == 200:
+            html = response.content
+            soup = BeautifulSoup(html, 'html.parser')
+            tel = soup.find_all('span', attrs={'data-value': True})
+        else:
+            app.logger.info('_get_tel() Request fail with http status code = {}'.format(response.status_code))
+    except requests.exceptions.RequestException as e:
+        app.logger.error('_get_tel() Http Error: ', e)
+    except KeyError as e:
+        app.logger.error('_get_tel() KeyError Cannot get data from tel[0]["data-value"]:\n {}'.format(response.text.replace('\n', '')), e)
+    except JSONDecodeError as e:
+        app.logger.error('_get_tel() JSONDecodeError', e)
+    finally:
+        if tel:
+            return tel[0]['data-value'].replace('-', '')
+        return tel
 
 
 def _parse_sex_condition(condition):
@@ -111,7 +141,6 @@ def _parse_lessor_role(nick_name, linkman):
     lessor_role_end = nick_name.index(linkman)
     lessor_role, lessor_name = nick_name[:lessor_role_end], nick_name[lessor_role_end:]
     lessor_role = lesser_role_dict.get(lessor_role, '-1')
-    # current_app.logger.info('_parse_lessor_title() info. {},{},{},{}'.format(nick_name, linkman, lessor_role, lessor_name))
     return lessor_role, lessor_name
 
 
@@ -134,7 +163,7 @@ def _reconstruct_house(house, app):
     new_house['linkman_role'] = lessor_role
     new_house['linkman'] = lessor_name
 
-    new_house['tel'] = _get_tel(house)
+    new_house['tel'] = _get_tel(house, app)
     new_house['kind'] = '{}'.format(house['kind'])
     shape = shape_dict.get(str(house['shape']), '-1')
     if shape == '-1':
@@ -168,11 +197,11 @@ def _reconstruct_houses(houses, app):
             try:
                 new_house = future.result()
             except Exception as e:
-                app.logger.error('parse houses error: ', e)
+                app.logger.error('_reconstruct_houses()  error: ', e)
             else:
                 new_houses.append(new_house)
     end = time.time()
-    app.logger.info(f'_reconstruct_houses() spent: {end - start} seconds')
+    app.logger.info(f'_reconstruct_houses() done spent: {end - start} seconds')
 
     return new_houses
 
