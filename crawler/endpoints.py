@@ -23,7 +23,7 @@ def index():
 
 @BP.route("/start", methods=["POST"])
 def start_crawl():
-    crawl_manager = CrawlManager.get_instance(current_app)
+    crawl_manager = CrawlManager.get_instance()
     if not crawl_manager.check_status():
         payloads = crawl_manager.create_payloads()
         crawl_manager.run(payloads)
@@ -39,14 +39,14 @@ def query():
     current_app.logger.info('the payload from frontend: {}'.format(str(payload.to_dict())))
 
     manager = MongoDbManager.get_instance(current_app)
-    manager.check_target_db()
-    manager.check_target_collection()
+    manager.check_target_db(current_app)
+    manager.check_target_collection(current_app)
 
     length, data = 0, []
     if manager.get_client() is not None:
         data = manager.query_by_pattern(payload.to_dict())
         length = data.count()
-        current_app.logger.info('Found {} records. '.format(length))
+        current_app.logger.info('/search : Found {} records. '.format(length))
 
     return make_response(
         {'message': 'got ' + str(length) + ' result', 'data': '\n'.join([str(record) for record in data[:100]])}, 201)

@@ -21,13 +21,13 @@ HEADERS = {
 }
 
 
-def get_houses(payload):
+def get_houses(payload, app):
     """
-    main function for crawling houses
+    thread function for crawling houses
     :param payload:
     :return:
     """
-    current_app.logger.info('get_houses() request sending payload: {}'.format(payload))
+    app.logger.info('get_houses() request sending payload: {}'.format(payload))
     session = requests.Session()
     _set_csrf_token(session)
 
@@ -35,22 +35,23 @@ def get_houses(payload):
     try:
         data = response.json()['data']
     except KeyError:
-        current_app.logger.error('response.json()["data"]: {}'.format(response.json()["data"]))
-        current_app.logger.error('Cannot get data from response.json["data"]')
+        app.logger.error('response.json()["data"]: {}'.format(response.json()["data"]))
+        app.logger.error('Cannot get data from response.json["data"]')
     except Exception:
-        current_app.logger.error('response: {}'.format(response.text))
+        app.logger.error('response: {}'.format(response.text))
         raise
     else:
         houses = data.get('data', [])
-        houses = _reconstruct_houses(houses)
-        inserted_ids = _save_to_mongo(houses)
-        current_app.logger.info(str(inserted_ids))
+        houses = _reconstruct_houses(houses, app)
+        inserted_ids = _save_to_mongo(houses, app)
+        app.logger.info('{} records crawled and saved into MongoDB.'.format(
+            len([inserted_id for inserted_id in inserted_ids if inserted_id is not None])))
         return inserted_ids
 
 
 def _get_tel(house):
     """
-
+    get phone number
     :param house:
     :return:
     """
@@ -66,7 +67,6 @@ def _get_tel(house):
 
 def get_houses_nums(payload):
     """
-
     :param payload:
     :return:
     """
@@ -115,8 +115,9 @@ def _parse_lessor_role(nick_name, linkman):
     return lessor_role, lessor_name
 
 
-def _reconstruct_house(house):
+def _reconstruct_house(house, app):
     """
+    thread function
     house = {'name': <str>, 'url': <str>, 'price': <str>, 'area': <str>, 'kind': <str>, 'update_time': <datetime>,
     'tel': <str>}
     """
@@ -137,11 +138,11 @@ def _reconstruct_house(house):
     new_house['kind'] = '{}'.format(house['kind'])
     shape = shape_dict.get(str(house['shape']), '-1')
     if shape == '-1':
-        current_app.logger.error('不明房屋型態出現 ' + str(house['shape']) + ' ... - ' + new_house['url'])
+        app.logger.error('不明房屋型態出現 ' + str(house['shape']) + ' ... - ' + new_house['url'])
     new_house['shape'] = '{}'.format(str(house['shape']))
     new_house['sex_requirement'] = _parse_sex_condition(house['condition'])
     if new_house['sex_requirement'] == '-1':
-        current_app.logger.error('不明租客性別要求出現 ' + str(house['condition']) + ' ... - ' + new_house['url'])
+        app.logger.error('不明租客性別要求出現 ' + str(house['condition']) + ' ... - ' + new_house['url'])
 
     new_house['id'] = str(house['user_id']) + '-' + str(house['id'])
     new_house['price'] = '{} {}'.format(house['price'], house['unit'])
@@ -152,26 +153,26 @@ def _reconstruct_house(house):
     return new_house
 
 
-def _reconstruct_houses(houses):
+def _reconstruct_houses(houses, app):
     """
 
     :param houses:
     :return:
     """
-    current_app.logger.info(f'_reconstruct_houses() start, total houses: {len(houses)}')
+    app.logger.info(f'_reconstruct_houses() start, total houses: {len(houses)}')
     start = time.time()
     new_houses = []
-    with concurrent.futures.ProcessPoolExecutor(max_workers=len(houses)) as executor:
-        futures = [executor.submit(_reconstruct_house, house) for house in houses]
+    with concurrent.futures.ThreadPoolExecutor(max_workers=len(houses)) as executor:
+        futures = [executor.submit(_reconstruct_house, house, app) for house in houses]
         for future in concurrent.futures.as_completed(futures):
             try:
                 new_house = future.result()
             except Exception as e:
-                current_app.logger.error('parse houses error: ', e)
+                app.logger.error('parse houses error: ', e)
             else:
                 new_houses.append(new_house)
     end = time.time()
-    current_app.logger.info(f'_reconstruct_houses() spent: {end - start} seconds')
+    app.logger.info(f'_reconstruct_houses() spent: {end - start} seconds')
 
     return new_houses
 
@@ -192,21 +193,19 @@ def _set_csrf_token(session):
             break
     else:
         current_app.logger.info(f'No csrf-token found')
-        pass
 
 
-def _save_to_mongo(houses):
+def _save_to_mongo(houses, app):
     """
-    input: list of data
-    schema: ?
-    :param houses:
-    :return:
+    thread function for storing houses into MongoDB
+    :param houses: list of house
+    :return: inserted ids
     """
-    client = MongoDbManager.get_instance(current_app)
-    client.check_target_db()
-    client.check_target_collection()
+    manager = MongoDbManager.get_instance(app)
+    manager.check_target_db(app)
+    manager.check_target_collection(app)
 
-    res = client.update(houses)
+    res = manager.update(houses, app)
 
-    current_app.logger.info('save_to_mongo() data save success. ')
+    app.logger.info('save_to_mongo() data save success. ')
     return res
