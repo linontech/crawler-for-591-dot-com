@@ -1,6 +1,6 @@
 from flask_wtf import FlaskForm
 from wtforms import fields, widgets, validators
-from wtforms.validators import DataRequired
+from wtforms.validators import DataRequired, Optional
 
 
 class MultiCheckboxField(fields.SelectMultipleField):
@@ -41,8 +41,10 @@ class QueryForm(FlaskForm):
     role_type = fields.SelectField(
         '刊登者角色',
         choices=[
-            ('0', '非屋主'),
-            ('1', '屋主'),
+            ('-1', '不限'),
+            ('0', '屋主'),
+            ('1', '代理人'),
+            ('2', '仲介'),
         ],
     )
 
@@ -55,4 +57,19 @@ class QueryForm(FlaskForm):
         '電話'
     )
 
+    price_upper = fields.IntegerField('租金上限', validators=[Optional(strip_whitespace=True)])
+
+    price_lower = fields.IntegerField('租金下限', validators=[Optional(strip_whitespace=True)])
+
+    area_upper = fields.IntegerField('坪數上限', validators=[Optional(strip_whitespace=True)])
+
+    area_lower = fields.IntegerField('坪數下限', validators=[Optional(strip_whitespace=True)])
+
     submit = fields.SubmitField('查詢')
+
+    def to_dict(self):
+        obj = {}
+        for attr, value in self.__dict__['_fields'].items():
+            if attr != 'submit' and attr != 'csrf_token' and value.data is not None:
+                obj[attr] = value.data
+        return obj

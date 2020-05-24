@@ -1,5 +1,6 @@
 import concurrent.futures
 import time
+import re
 from json import JSONDecodeError
 
 import requests
@@ -43,7 +44,8 @@ def get_houses(payload, app):
     except requests.exceptions.RequestException as e:
         app.logger.error('get_houses() Http Error: ', e)
     except KeyError as e:
-        app.logger.error('get_houses() KeyError Cannot get data from response.json["data"]:\n {}'.format(response.text.replace('\n', '')), e)
+        app.logger.error('get_houses() KeyError Cannot get data from response.json["data"]:\n {}'.format(
+            response.text.replace('\n', '')), e)
     except JSONDecodeError as e:
         app.logger.error('get_houses() JSONDecodeError', e)
     else:
@@ -70,11 +72,13 @@ def get_houses_nums(payload):
         if response.status_code == 200:
             num = int(response.json()['records'].replace(',', ''))
         else:
-            current_app.logger.info('get_houses_nums() Request fail with http status code = {}'.format(response.status_code))
+            current_app.logger.info(
+                'get_houses_nums() Request fail with http status code = {}'.format(response.status_code))
     except requests.exceptions.RequestException as e:
         current_app.logger.error('get_houses_nums() Http Error: ', e)
     except KeyError as e:
-        current_app.logger.error('get_houses_nums() KeyError Cannot get data from tel[0]["data-value"]:\n {}'.format(response.text.replace('\n', '')), e)
+        current_app.logger.error('get_houses_nums() KeyError Cannot get data from tel[0]["data-value"]:\n {}'.format(
+            response.text.replace('\n', '')), e)
     except JSONDecodeError as e:
         current_app.logger.error('get_houses_nums() JSONDecodeError', e)
     finally:
@@ -102,7 +106,8 @@ def _get_tel(house, app):
     except requests.exceptions.RequestException as e:
         app.logger.error('_get_tel() Http Error: ', e)
     except KeyError as e:
-        app.logger.error('_get_tel() KeyError Cannot get data from tel[0]["data-value"]:\n {}'.format(response.text.replace('\n', '')), e)
+        app.logger.error('_get_tel() KeyError Cannot get data from tel[0]["data-value"]:\n {}'.format(
+            response.text.replace('\n', '')), e)
     except JSONDecodeError as e:
         app.logger.error('_get_tel() JSONDecodeError', e)
     finally:
@@ -162,8 +167,7 @@ def _reconstruct_house(house, app):
     new_house['regionid'] = str(house['regionid'])
 
     lessor_role, lessor_name = _parse_lessor_role(house['nick_name'], house['linkman'])
-    new_house['linkman_role'] = lessor_role
-    new_house['linkman'] = lessor_name
+    new_house['linkman'] = {'name': lessor_name, 'role': lessor_role, 'sex': _get_sex(lessor_name)}
 
     new_house['tel'] = _get_tel(house, app)
     new_house['kind'] = '{}'.format(house['kind'])
@@ -176,12 +180,29 @@ def _reconstruct_house(house, app):
         app.logger.error('不明租客性別要求出現 ' + str(house['condition']) + ' ... - ' + new_house['url'])
 
     new_house['id'] = str(house['user_id']) + '-' + str(house['id'])
-    new_house['price'] = '{} {}'.format(house['price'], house['unit'])
-    new_house['area'] = '{} 坪'.format(house['area'])
+    new_house['price'] = int(house['price'].replace(',', ''))  # 元
+    new_house['area'] = house['area']  # 坪
     new_house['layout'] = '{}'.format(house['layout'])
     new_house['update_time'] = '{}'.format(time.ctime(house['refreshtime']))
 
     return new_house
+
+
+def _get_sex(name):
+    """
+    :param name: linkman name
+    :return: 0: woman, 1: man, 2: both, 3: None
+    """
+    isMan = re.findall('先生|帥哥|哥', name)
+    isWoman = re.findall('小姐|媽媽|媽|女士|太太|太', name)
+    if not isMan and isWoman:
+        return '0'
+    elif isMan and not isWoman:
+        return '1'
+    elif isMan and isWoman:
+        return '2'
+    else:  # unknown
+        return '3'
 
 
 def _reconstruct_houses(houses, app):

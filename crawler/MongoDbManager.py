@@ -90,34 +90,31 @@ class MongoDbManager:
 
     def query_by_pattern(self, pattern):
         """
-        pattern['sex'], pattern['role'] should be passed in already
+        should put frequently used fields in the front
+        pattern['sex'], pattern['role_type'] should be passed in already
         :param pattern: a dict with patterns
         :return:
         """
-        parsed_pattern = [{'regionid': pattern['regionid']}]
+        parsed_patterns = {
+            'price': {'$lte': pattern.get('price_upper', 2 ** 31 - 1), '$gte': pattern.get('price_lower', 0)},
+            'area': {'$lte': pattern.get('area_upper', 2 ** 31 - 1), '$gte': pattern.get('area_lower', 0)}}
+
+        if pattern.get('linkman', ''):  # if specify lessor name already, you just can't choose lessor's gender again
+            parsed_patterns['linkman.name'] = {'$regex': '.*' + ''.join(pattern['linkman']) + '.*'}
+        else:
+            parsed_patterns['linkman.sex'] = pattern['lessor_sex']
+
+        if pattern['role_type'] != '-1':  # -1 means no constraint
+            parsed_patterns['linkman.role'] = pattern['role_type']
+
+        if pattern['tel'] != '':
+            parsed_patterns['tel'] = {'$regex': '.*' + ''.join(pattern['tel']) + '.*'}
 
         if pattern['sex'] != '0':  # match patterns in constants.py
-            parsed_pattern.append({'sex_requirement': pattern['sex']})
-        if pattern['role_type'] == '1':
-            parsed_pattern.append({'linkman_role': '0'})
-        if pattern['role_type'] == '0':
-            role_pattern = []
-            for key, value in lesser_role_dict.items():
-                if value != '0' and key != 'unknown':
-                    role_pattern.append(value)
-            parsed_pattern.append({'linkman_role': {'$regex': '|'.join(role_pattern)}})
-        if pattern['tel'] != '':
-            parsed_pattern.append({'tel': {'$regex': '.*' + ''.join(pattern['tel']) + '.*'}})
+            parsed_patterns['sex_requirement'] = pattern['sex']
 
-        if pattern.get('linkman', ''):  # if specify lessor name already, you just can't choose lessor's gendar again
-            parsed_pattern.append({'linkman': {'$regex': '.*' + ''.join(pattern['linkman']) + '.*'}})
-        else:
-            sex_pattern = []
-            for key, value in lessor_sex_dict.items():
-                if value == pattern['lessor_sex'] and key != '不限':  # lessor_sex is a Required Field
-                    sex_pattern.append('.*' + key + '.*')
-            parsed_pattern.append({'linkman': {'$regex': '|'.join(sex_pattern)}})
-        parsed_patterns = {'$and': parsed_pattern}
+        parsed_patterns['regionid'] = pattern['regionid']
+
         current_app.logger.info('Attempt searching with patterns: {}'.format(str(parsed_patterns)))
         cursor = self.__collection.find(parsed_patterns)
 

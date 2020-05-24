@@ -46,16 +46,26 @@ def stop_crawl():
 def query():
     payload = request.json or request.form
     current_app.logger.info('the payload from frontend: {}'.format(str(payload.to_dict())))
+    form = QueryForm(request.form)
+    if not form.validate():
+        message = ''
+        for error, info in form.errors.items():
+            message += error + ': ' + str(info) + '\n'
+        current_app.logger.info('Error! form fields not valid! \n {}'.format(message))
+        return make_response({'message': message, 'data': ''}, 201)
 
     manager = MongoDbManager.get_instance(current_app)
     manager.check_target_db(current_app)
     manager.check_target_collection(current_app)
 
-    length, data = 0, []
     if manager.get_client() is not None:
-        data = manager.query_by_pattern(payload.to_dict())
+        data = manager.query_by_pattern(form.to_dict())
         length = data.count()
         current_app.logger.info('/search : Found {} records. '.format(length))
-
-    return make_response(
-        {'message': 'got ' + str(length) + ' result', 'data': '\n'.join([str(record) for record in data[:100]])}, 201)
+        return make_response(
+            {'message': 'got ' + str(length) + ' result', 'data': '\n'.join([str(record) for record in data[:100]])},
+            201)
+    else:
+        message = 'Fail to get MongoDBManager!'
+        current_app.logger.info('/search : Error! ' + message)
+        return make_response({'message': message, 'data': ''}, 201)
