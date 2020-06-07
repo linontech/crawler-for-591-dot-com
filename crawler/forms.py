@@ -21,9 +21,9 @@ class QueryForm(FlaskForm):
     lessor_sex = fields.SelectField(
         '聯繫人/屋主 性別',
         choices=[
-            ('0', '不限'),
+            ('2', '不限'),
+            ('0', '女'),
             ('1', '男'),
-            ('2', '女'),
         ],
         validators=[DataRequired()],
     )
@@ -31,9 +31,9 @@ class QueryForm(FlaskForm):
     sex = fields.SelectField(
         '租客 性別要求',
         choices=[
-            ('0', '不限'),
+            ('2', '不限'),
+            ('0', '女'),
             ('1', '男'),
-            ('2', '女'),
         ],
         validators=[DataRequired()],
     )
@@ -41,7 +41,7 @@ class QueryForm(FlaskForm):
     role_type = fields.SelectField(
         '刊登者角色',
         choices=[
-            ('-1', '不限'),
+            ('3', '不限'),
             ('0', '屋主'),
             ('1', '代理人'),
             ('2', '仲介'),

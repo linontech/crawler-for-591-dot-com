@@ -44,20 +44,22 @@ lesser_role_dict = {
     '屋主': '0',
     '代理人': '1',
     '仲介': '2',
+    '不限': '3',
     'unknown': '-1',
 }
 
-sex_requirement_dict = {
-    'all_sex': '0',
+sex_requirement_dict = { # map to five9one website
+    'girl': '0',
     'boy': '1',
-    'girl': '2',
-    'unknown': '-1'
+    'all_sex': '2',
+    'unknown': '3'
 }
 
 sex_dict = {
-    '不限': '0',
+    '女': '0',
     '男': '1',
-    '女': '2',
+    '不限': '2',
+    'unknown': '3',
 }
 
 lessor_sex_dict = {
