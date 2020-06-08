@@ -23,10 +23,12 @@ HEADERS = {
 }
 
 
-def get_houses(payload, app):
+def get_houses(payload, session, app):
     """
     thread function for crawling houses
     :param payload:
+    :param session:
+    :param app:
     :return:
     """
     app.logger.info('get_houses() request sending payload: {}'.format(payload))
@@ -34,26 +36,26 @@ def get_houses(payload, app):
     response = None
     inserted_ids, data = [], {}
     try:
-        session = requests.Session()
-        _set_csrf_token(session)
         response = session.get(API_URL, params=payload, headers=HEADERS)
         if response.status_code == 200:
             data = response.json()['data']
         else:
-            app.logger.info('get_houses() Request fail with http status code = {}'.format(response.status_code))
+            app.logger.error('get_houses() Request fail with http status code = {}, {}'.format(response.status_code, str(payload)))
     except requests.exceptions.RequestException as e:
         app.logger.error('get_houses() Http Error: ', e)
     except KeyError as e:
-        app.logger.error('get_houses() KeyError Cannot get data from response.json["data"]:\n {}'.format(
+        app.logger.error('get_houses() KeyError Cannot get data from response.json["data"]: {}'.format(
             response.text.replace('\n', '')), e)
     except JSONDecodeError as e:
         app.logger.error('get_houses() JSONDecodeError', e)
+    except Exception as e:
+        app.logger.error('get_houses() ', e)
     else:
         houses = data.get('data', [])
-        houses = _reconstruct_houses(houses, app)
+        houses = _reconstruct_houses(houses, session, app)
         inserted_ids = _save_to_mongo(houses, app)
-        app.logger.info('{} records crawled and saved into MongoDB. ids: '.format(
-            len([inserted_id for inserted_id in inserted_ids if inserted_id is not None])))
+        app.logger.info('{} records crawled and saved into MongoDB. {} '.format(
+            len([inserted_id for inserted_id in inserted_ids if inserted_id is not None]), str(inserted_ids)))
     finally:
         return inserted_ids
 
@@ -67,7 +69,7 @@ def get_houses_nums(payload):
     response, num = None, 0
     try:
         session = requests.Session()
-        _set_csrf_token(session)
+        _set_csrf_token(session, current_app._get_current_object())
         response = session.get(API_URL, params=payload, headers=HEADERS)
         if response.status_code == 200:
             num = int(response.json()['records'].replace(',', ''))
@@ -77,7 +79,7 @@ def get_houses_nums(payload):
     except requests.exceptions.RequestException as e:
         current_app.logger.error('get_houses_nums() Http Error: ', e)
     except KeyError as e:
-        current_app.logger.error('get_houses_nums() KeyError Cannot get data from tel[0]["data-value"]:\n {}'.format(
+        current_app.logger.error('get_houses_nums() KeyError Cannot get data from tel[0]["data-value"]: {}'.format(
             response.text.replace('\n', '')), e)
     except JSONDecodeError as e:
         current_app.logger.error('get_houses_nums() JSONDecodeError', e)
@@ -85,35 +87,49 @@ def get_houses_nums(payload):
         return num
 
 
-def _get_tel(house, app):
+def _get_tel(house, session, app):
     """
     thread function to get phone number
     :param house:
+    :param session:
+    :param app:
     :return:
     """
-    response = None
-    tel = ''
-    try:
-        session = requests.Session()
-        _set_csrf_token(session)
-        response = session.get(WEB_URL_FORMAT_STR.format(house['post_id']), headers=HEADERS)
-        if response.status_code == 200:
-            html = response.content
-            soup = BeautifulSoup(html, 'html.parser')
-            tel = soup.find_all('span', attrs={'data-value': True})
-        else:
-            app.logger.info('_get_tel() Request fail with http status code = {}'.format(response.status_code))
-    except requests.exceptions.RequestException as e:
-        app.logger.error('_get_tel() Http Error: ', e)
-    except KeyError as e:
-        app.logger.error('_get_tel() KeyError Cannot get data from tel[0]["data-value"]:\n {}'.format(
-            response.text.replace('\n', '')), e)
-    except JSONDecodeError as e:
-        app.logger.error('_get_tel() JSONDecodeError', e)
-    finally:
-        if tel:
-            return tel[0]['data-value'].replace('-', '')
-        return tel
+    url = WEB_URL_FORMAT_STR.format(house['post_id'])
+    retry = 3
+    while retry > 0:
+        try:
+            response = session.get(url, headers=HEADERS)
+            if response.status_code == 200:
+                html = response.content
+                soup = BeautifulSoup(html, 'html.parser')
+                tel = soup.find_all('span', attrs={'data-value': True})
+                if len(tel) == 1:
+                    # app.logger.info('_get_tel() Found tel on {}.'.format(url))
+                    if retry < 3:
+                        app.logger.info('_get_tel() retryed success')
+                    return tel[0]['data-value'].replace('-', '')
+                else:
+                    app.logger.info('_get_tel() No tel found on {}.'.format(url))
+            else:
+                app.logger.info('_get_tel() on {} Request fail with http status code = {}'.format(
+                    url, response.status_code))
+                retry -= 1
+                continue
+        except requests.exceptions.ConnectionError as e:
+            app.logger.error('_get_tel() on {} ConnectionError'.format(url, e))
+            app.logger.error('_get_tel() retrying')
+            retry -= 1
+            if retry < 0:
+                app.logger.error('_get_tel() retryed 3 times still failed.')
+        except requests.exceptions.RequestException as e:
+            app.logger.error('_get_tel() on {}, RequestException: {}'.format(url, e))
+        except KeyError as e:
+            app.logger.error('_get_tel() on {}, KeyError Cannot get data from tel[0]["data-value"]: {}'.format(
+                url, response.text.replace('\n', '')), e)
+        except JSONDecodeError as e:
+            app.logger.error('_get_tel() on {}, JSONDecodeError {}'.format(url, e))
+    return ''
 
 
 def _parse_sex_condition(condition):
@@ -134,8 +150,8 @@ def _parse_sex_condition(condition):
 def _parse_lessor_role(nick_name, linkman):
     """
     注意：梁先生免費服務. pattern too complex
-    :param nick_name: 中介 勸業房屋, 屋主 林先生
-    :param linkman: 林先生, 路 小姐
+    :param nick_name: eg. 中介 勸業房屋, 屋主 林先生
+    :param linkman: eg. 林先生, 路 小姐
     :return: lessor_role, lessor_name=lessor
     """
     lessor_role, lessor_name = '-1', '-1'
@@ -151,25 +167,25 @@ def _parse_lessor_role(nick_name, linkman):
     return lessor_role, lessor_name
 
 
-def _reconstruct_house(house, app):
+def _reconstruct_house(house, session, app):
     """
     thread function
     house = {'name': <str>, 'url': <str>, 'price': <str>, 'area': <str>, 'kind': <str>, 'update_time': <datetime>,
     'tel': <str>}
+    :param house:
+    :param session:
+    :param app:
     """
-    new_house = {}
-    new_house['url'] = '{}'.format(WEB_URL_FORMAT_STR.format(house['post_id']))
-    new_house['name'] = '{}-{}-{}'.format(
+    new_house = {'url': '{}'.format(WEB_URL_FORMAT_STR.format(house['post_id'])), 'name': '{}-{}-{}'.format(
         house['region_name'],
         house['section_name'],
         house['fulladdress'],
-    )
-    new_house['regionid'] = str(house['regionid'])
+    ), 'regionid': str(house['regionid'])}
 
     lessor_role, lessor_name = _parse_lessor_role(house['nick_name'], house['linkman'])
-    new_house['linkman'] = {'name': lessor_name, 'role': lessor_role, 'sex': _get_sex(lessor_name)}
+    new_house['linkman'] = {'name': lessor_name, 'role': lessor_role, 'sex': _get_sex(lessor_name),
+                            'tel': _get_tel(house, session, app)}
 
-    new_house['tel'] = _get_tel(house, app)
     new_house['kind'] = '{}'.format(house['kind'])
     shape = shape_dict.get(str(house['shape']), '-1')
     if shape == '-1':
@@ -199,13 +215,13 @@ def _get_sex(name):
         return '0'
     elif isMan and not isWoman:
         return '1'
-    elif isMan and isWoman:
+    elif isMan and isWoman: # 不限
         return '2'
     else:  # unknown
         return '3'
 
 
-def _reconstruct_houses(houses, app):
+def _reconstruct_houses(houses, session, app):
     """
 
     :param houses:
@@ -214,8 +230,8 @@ def _reconstruct_houses(houses, app):
     app.logger.info(f'_reconstruct_houses() start, total houses: {len(houses)}')
     start = time.time()
     new_houses = []
-    with concurrent.futures.ThreadPoolExecutor(max_workers=len(houses)) as executor:
-        futures = [executor.submit(_reconstruct_house, house, app) for house in houses]
+    with concurrent.futures.ThreadPoolExecutor(thread_name_prefix='HousesWorker-', max_workers=len(houses)) as executor:
+        futures = [executor.submit(_reconstruct_house, house, session, app) for house in houses]
         for future in concurrent.futures.as_completed(futures):
             try:
                 new_house = future.result()
@@ -229,7 +245,7 @@ def _reconstruct_houses(houses, app):
     return new_houses
 
 
-def _set_csrf_token(session):
+def _set_csrf_token(session, app):
     """
 
     :param session:
@@ -242,9 +258,10 @@ def _set_csrf_token(session):
             csrf_token = tag.get('content')
             session.headers = HEADERS
             session.headers['X-CSRF-TOKEN'] = csrf_token
+            # app.logger.info(f'Found csrf-token ' + csrf_token)
             break
     else:
-        current_app.logger.info(f'No csrf-token found')
+        app.logger.info(f'No csrf-token found')
 
 
 def _save_to_mongo(houses, app):
@@ -254,10 +271,6 @@ def _save_to_mongo(houses, app):
     :return: inserted ids
     """
     manager = MongoDbManager.get_instance(app)
-    manager.check_target_db(app)
-    manager.check_target_collection(app)
-
     res = manager.update(houses, app)
 
-    app.logger.info('save_to_mongo() data save success. ')
     return res

@@ -1,16 +1,19 @@
 import concurrent.futures
 import threading
 import time
-from flask import current_app
 
-from crawler.crawler import get_houses, get_houses_nums
+import requests
+from flask import current_app
+from requests.adapters import HTTPAdapter
+
+from crawler.crawler import get_houses, get_houses_nums, _set_csrf_token
 
 lock = threading.Lock()
 
 
 class CrawlManager:
     DELAY = 0.6
-    MAX_WORKERS = 5
+    MAX_WORKERS = 3
     DEFAULT_PAYLOAD = {'is_new_list': '1', 'type': '1', 'kind': '0', 'searchtype': 1}
     ATTEMPT_STOP = False
     RUNNING = False
@@ -42,22 +45,25 @@ class CrawlManager:
             start = time.time()
             self.ATTEMPT_STOP = False
             self.RUNNING = True
-            with concurrent.futures.ThreadPoolExecutor(max_workers=self.MAX_WORKERS) as executor:
+            with concurrent.futures.ThreadPoolExecutor(thread_name_prefix='MyCrawler', max_workers=self.MAX_WORKERS) as executor:
                 for index in range(0, len(payloads), self.MAX_WORKERS):
                     if self.ATTEMPT_STOP:
                         end = time.time()
                         current_app.logger.info(f'CrawlManager run() stopped and spent: {end - start} seconds. ')
                         self.RUNNING = False
                         return 'stopped'
-                    futures = [executor.submit(get_houses, payload, current_app._get_current_object())
-                               for payload in payloads[index: index+5]]
-                    for future in concurrent.futures.as_completed(futures):
-                        try:
-                            result_ids = future.result()
-                        except Exception as e:
-                            current_app.logger.error('CrawlManager run() error: ', e)
-                        else:
-                            current_app.logger.info('CrawlManager run() and save success ' + str(result_ids))
+                    with requests.Session() as session:
+                        session.mount('https://', HTTPAdapter(
+                            pool_connections=current_app.config.get('POOL_CONNECTIONS_NUM'),
+                            pool_maxsize=current_app.config.get('POOL_MAXSIZE_NUM')))
+                        _set_csrf_token(session, current_app._get_current_object())
+                        futures = [executor.submit(get_houses, payload, session, current_app._get_current_object())
+                                   for payload in payloads[index: index + self.MAX_WORKERS]]
+                        for future in concurrent.futures.as_completed(futures):
+                            try:
+                                future.result()  # = resulted_ids
+                            except Exception as e:
+                                current_app.logger.error('CrawlManager run() error: ', e)
             end = time.time()
             current_app.logger.info(f'CrawlManager run() done spent: {end - start} seconds. ')
             self.RUNNING = False
