@@ -41,6 +41,9 @@ class MongoDbManager:
                     cls.db_name = app.config.get('MONGODB_DATABASE')
                     cls.collection_name = app.config.get('MONGODB_COLLECTION')
                     cls.__instance = object.__new__(cls)
+                    cls.__instance .check_target_db(app)
+                    cls.__instance .check_target_collection(app)
+                    cls.__instance._create_index()
 
         return cls.__instance
 
@@ -76,15 +79,27 @@ class MongoDbManager:
         """
         thread function for inserting houses
         :param houses: houses records
+        :param app: app context
         :return:
         """
         res = []
         for house in houses:
             house_in_db = self._query_by_id(house['id'])
-            if house_in_db.count() != 0:
-                app.logger.info('Found duplicate id {}'.format(house['id']))
-            response = self.__collection.replace_one({'id': house['id']}, house, upsert=True)
-            res.append(response.upserted_id)
+            if house_in_db:
+                app.logger.info('Found duplicate id {}, replace old data.'.format(house['id']))
+                existed_id = str(house_in_db['_id'])
+                modified_fields = self._find_modified_pattern(house, house_in_db)
+                if modified_fields:
+                    response = self.__collection.update_one({'_id': house_in_db['_id']}, {'$set': modified_fields})
+                    res.append('update-' + house['id'] + '-' + existed_id)
+                else:
+                    res.append('duplicate-' + house['id'] + '-' + existed_id)
+            else:
+                response = self.__collection.update_one({'id': house['id']}, {'$set': house}, upsert=True)
+                if response.matched_count > 0:
+                    res.append('new-' + house['id'] + '-conflict')
+                else:
+                    res.append('new-' + house['id'] + '-' + str(response.upserted_id))
 
         return res
 
@@ -102,15 +117,16 @@ class MongoDbManager:
         if pattern.get('linkman', ''):  # if specify lessor name already, you just can't choose lessor's gender again
             parsed_patterns['linkman.name'] = {'$regex': '.*' + ''.join(pattern['linkman']) + '.*'}
         else:
-            parsed_patterns['linkman.sex'] = pattern['lessor_sex']
+            if pattern['lessor_sex'] != '2':
+                parsed_patterns['linkman.sex'] = pattern['lessor_sex']
 
-        if pattern['role_type'] != '-1':  # -1 means no constraint
+        if pattern['role_type'] != '3':
             parsed_patterns['linkman.role'] = pattern['role_type']
 
         if pattern['tel'] != '':
             parsed_patterns['tel'] = {'$regex': '.*' + ''.join(pattern['tel']) + '.*'}
 
-        if pattern['sex'] != '0':  # match patterns in constants.py
+        if pattern['sex'] != '2':  # match patterns in constants.py
             parsed_patterns['sex_requirement'] = pattern['sex']
 
         parsed_patterns['regionid'] = pattern['regionid']
@@ -122,7 +138,7 @@ class MongoDbManager:
 
     def insert(self, houses):
         """
-        preserved method, using replace_one() with upsert=True instead
+        preserved method
         :param houses:
         :return: inserted_id
         """
@@ -136,9 +152,27 @@ class MongoDbManager:
     def get_client(self):
         return self.__client
 
-    def _query_by_id(self, _id):
-        cursor = self.__collection.find({'id': _id})
+    def _query_by_id(self, house_id):
+        cursor = self.__collection.find_one({'id': house_id})
         return cursor
+
+    def _create_index(self):
+        """
+        Handle duplicate insertions.
+        """
+        self.__collection.create_index('id', unique=True)
 
     def _close(self):
         self.__client.close()
+
+    @staticmethod
+    def _find_modified_pattern(house, house_in_db):
+        """
+        todo: find modified pattern for compound fields
+        """
+        pattern = {}
+        for key, value in house.items():
+            if house[key] != house_in_db[key]:
+                pattern[key] = house[key]
+
+        return pattern
