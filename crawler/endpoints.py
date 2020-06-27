@@ -25,8 +25,7 @@ def index():
 def start_crawl():
     crawl_manager = CrawlManager.get_instance()
     if not crawl_manager.is_running():
-        payloads = crawl_manager.create_payloads()
-        message = crawl_manager.run(payloads)
+        message = crawl_manager.run()
         data = {'message': message, 'code': 'SUCCESS'}
     else:
         data = {'message': 'crawler exists...', 'code': 'SUCCESS'}
@@ -56,7 +55,7 @@ def query():
 
     manager = MongoDbManager.get_instance(current_app)
 
-    if manager.get_client() is not None:
+    if manager is not None and manager.get_client() is not None:
         data = manager.query_by_pattern(form.to_dict())
         length = data.count()
         current_app.logger.info('/search : Found {} records. '.format(length))

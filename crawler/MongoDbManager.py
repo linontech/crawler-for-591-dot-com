@@ -38,16 +38,17 @@ class MongoDbManager:
                     except errors.ServerSelectionTimeoutError as err:
                         app.logger.error("Connection to MongoDB Error", stack_info=err)
                         cls.__client = None
+                        return None
                     cls.db_name = app.config.get('MONGODB_DATABASE')
                     cls.collection_name = app.config.get('MONGODB_COLLECTION')
                     cls.__instance = object.__new__(cls)
-                    cls.__instance .check_target_db(app)
-                    cls.__instance .check_target_collection(app)
+                    cls.__instance._check_target_db(app)
+                    cls.__instance._check_target_collection(app)
                     cls.__instance._create_index()
 
         return cls.__instance
 
-    def check_target_db(self, app):
+    def _check_target_db(self, app):
         """
         thread function for check database existence, create if not exist
         """
@@ -61,7 +62,7 @@ class MongoDbManager:
             app.logger.info('db {} already exists: '.format(self.db_name))
         self.__db = self.__client[app.config.get('MONGODB_DATABASE')]
 
-    def check_target_collection(self, app):
+    def _check_target_collection(self, app):
         """
         thread function for check collection existence, create if not exist
         """
