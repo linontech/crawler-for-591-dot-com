@@ -16,7 +16,7 @@ lock = threading.Lock()
 
 class CrawlManager(object):
     DELAY = 0.6
-    MAX_WORKERS = 3
+    MAX_WORKERS = 10
     DEFAULT_PAYLOAD = {'is_new_list': '1', 'type': '1', 'kind': '0', 'searchtype': 1}
     ATTEMPT_STOP = False
     RUNNING = False
@@ -42,7 +42,7 @@ class CrawlManager(object):
         CrawlManager multi-thread
         :return: message
         """
-        payloads = self._create_payloads()
+        payloads = self._create_payloads()[:100]
         current_app.logger.info(f'CrawlManager run() is going to make {len(payloads)} requests. ')
         if not self.RUNNING:
             start = time.time()
@@ -53,7 +53,7 @@ class CrawlManager(object):
                 for index in range(0, len(payloads), self.MAX_WORKERS):
                     if self.ATTEMPT_STOP:
                         end = time.time()
-                        current_app.logger.info(f'CrawlManager run() stopped and spent: {end - start} seconds. ')
+                        current_app.logger.info(f'CrawlManager run() stopped by user, spent: {end - start} seconds. ')
                         self.RUNNING = False
                         return 'stopped'
                     with requests.Session() as session:
@@ -203,31 +203,27 @@ class CrawlManager(object):
         :return:
         """
         url = app.config.get('WEB_URL_FORMAT_STR').format(house['post_id'])
-        retry = 3
+        retry, tel = 3, ''
         while retry > 0:
             try:
                 response = session.get(url, headers=app.config.get('HEADERS'))
                 if response.status_code == 200:
                     html = response.content
                     soup = BeautifulSoup(html, 'html.parser')
-                    tel = soup.find_all('span', attrs={'data-value': True})
-                    if retry < 3:
-                        app.logger.info('_get_tel() retried success')
-                    if len(tel) == 1:
-                        return tel[0]['data-value'].replace('-', '')
+                    val = soup.find_all('span', attrs={'data-value': True})
+                    if len(val) == 1:
+                        tel = val[0]['data-value'].replace('-', '')
                     else:
                         app.logger.info('_get_tel() No tel found on {}.'.format(url))
+                    break
                 else:
-                    app.logger.info('_get_tel() on {} Request fail with http status code = {}'.format(
-                        url, response.status_code))
+                    app.logger.info('_get_tel() on {} Request fail with http status code = {}, retrying ... left {}'
+                                    .format(url, response.status_code, retry))
                     retry -= 1
                     continue
             except requests.exceptions.ConnectionError as e:
-                app.logger.error('_get_tel() on {} ConnectionError'.format(url, e))
-                app.logger.error('_get_tel() retrying')
+                app.logger.error('_get_tel() on {} , retrying ... left {}, ConnectionError {}'.format(url, retry, e))
                 retry -= 1
-                if retry < 0:
-                    app.logger.error('_get_tel() retryed 3 times still failed.')
             except requests.exceptions.RequestException as e:
                 app.logger.error('_get_tel() on {}, RequestException: {}'.format(url, e))
             except KeyError as e:
@@ -235,7 +231,13 @@ class CrawlManager(object):
                     url, response.text.replace('\n', '')), e)
             except JSONDecodeError as e:
                 app.logger.error('_get_tel() on {}, JSONDecodeError {}'.format(url, e))
-        return ''
+            finally:
+                if 0 < retry < 3 and tel != '':
+                    app.logger.info('_get_tel() retried success')
+                if retry == 0:
+                    app.logger.error('_get_tel() retried 3 times still failed.')
+
+        return tel
 
     def _reconstruct_houses(self, houses, session, app):
         """
@@ -246,7 +248,7 @@ class CrawlManager(object):
         app.logger.info(f'_reconstruct_houses() start, total houses: {len(houses)}')
         start = time.time()
         new_houses = []
-        with concurrent.futures.ThreadPoolExecutor(thread_name_prefix='HousesWorker-',
+        with concurrent.futures.ThreadPoolExecutor(thread_name_prefix='HousesWorker',
                                                    max_workers=len(houses)) as executor:
             futures = [executor.submit(self._reconstruct_house, house, session, app) for house in houses]
             for future in concurrent.futures.as_completed(futures):
