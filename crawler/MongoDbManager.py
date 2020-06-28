@@ -87,7 +87,7 @@ class MongoDbManager:
         for house in houses:
             house_in_db = self._query_by_id(house['id'])
             if house_in_db:
-                app.logger.info('Found duplicate id {}, replace old data.'.format(house['id']))
+                # app.logger.info('Found duplicate id {}, replace old data.'.format(house['id']))
                 existed_id = str(house_in_db['_id'])
                 modified_fields = self._find_modified_pattern(house, house_in_db)
                 if modified_fields:

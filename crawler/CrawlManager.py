@@ -42,7 +42,7 @@ class CrawlManager(object):
         CrawlManager multi-thread
         :return: message
         """
-        payloads = self._create_payloads()[:100]
+        payloads = self._create_payloads()
         current_app.logger.info(f'CrawlManager run() is going to make {len(payloads)} requests. ')
         if not self.RUNNING:
             start = time.time()
@@ -66,7 +66,12 @@ class CrawlManager(object):
                             for payload in payloads[index: index + self.MAX_WORKERS]]
                         for future in concurrent.futures.as_completed(futures):
                             try:
-                                future.result()  # = resulted_ids
+                                houses = future.result()
+                                houses = self._reconstruct_houses(houses, session, current_app._get_current_object())
+                                inserted_ids = self._save_to_mongo(houses, current_app._get_current_object())
+                                current_app.logger.info('{} records crawled and saved into MongoDB. {} '.format(
+                                    len([inserted_id for inserted_id in inserted_ids if inserted_id is not None]),
+                                    str(inserted_ids)))
                             except Exception as e:
                                 current_app.logger.error('CrawlManager run() error: ', e)
             end = time.time()
@@ -150,7 +155,7 @@ class CrawlManager(object):
         app.logger.info('get_houses() request sending payload: {}'.format(payload))
 
         response = None
-        inserted_ids, data = [], {}
+        houses, data = [], {}
         try:
             response = session.get(app.config.get('API_URL'), params=payload, headers=app.config.get('HEADERS'))
             if response.status_code == 200:
@@ -169,12 +174,8 @@ class CrawlManager(object):
             app.logger.error('get_houses() ', e)
         else:
             houses = data.get('data', [])
-            houses = self._reconstruct_houses(houses, session, app)
-            inserted_ids = self._save_to_mongo(houses, app)
-            app.logger.info('{} records crawled and saved into MongoDB. {} '.format(
-                len([inserted_id for inserted_id in inserted_ids if inserted_id is not None]), str(inserted_ids)))
         finally:
-            return inserted_ids
+            return houses
 
     def _set_csrf_token(self, session):
         """
