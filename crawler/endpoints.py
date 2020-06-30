@@ -28,7 +28,7 @@ def start_crawl():
         message = crawl_manager.run()
         data = {'message': message, 'code': 'SUCCESS'}
     else:
-        data = {'message': 'crawler exists...', 'code': 'SUCCESS'}
+        data = {'message': 'crawler exists...', 'code': 'DUPLICATED'}
     return make_response(data, 201)
 
 
@@ -55,7 +55,7 @@ def query():
 
     manager = MongoDbManager.get_instance(current_app)
 
-    if manager is not None and manager.get_client() is not None:
+    if manager is not None and manager.get_client(current_app) is not None:
         data = manager.query_by_pattern(form.to_dict())
         length = data.count()
         current_app.logger.info('/search : Found {} records. '.format(length))

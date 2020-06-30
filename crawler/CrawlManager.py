@@ -21,6 +21,7 @@ class CrawlManager(object):
     ATTEMPT_STOP = False
     RUNNING = False
     __instance = None
+    duplicate_count = 0
 
     def __init__(self):
         raise SyntaxError('can not instance, please use get_instance')
@@ -42,6 +43,7 @@ class CrawlManager(object):
         CrawlManager multi-thread
         :return: message
         """
+        self.duplicate_count = 0
         payloads = self._create_payloads()
         current_app.logger.info(f'CrawlManager run() is going to make {len(payloads)} requests. ')
         if not self.RUNNING:
@@ -69,9 +71,10 @@ class CrawlManager(object):
                                 houses = future.result()
                                 houses = self._reconstruct_houses(houses, session, current_app._get_current_object())
                                 inserted_ids = self._save_to_mongo(houses, current_app._get_current_object())
+                                tmp_dup_count = len([inserted_id for inserted_id in inserted_ids if inserted_id.startswith('duplicate')])
+                                self.duplicate_count += tmp_dup_count
                                 current_app.logger.info('{} records crawled and saved into MongoDB. {} '.format(
-                                    len([inserted_id for inserted_id in inserted_ids if inserted_id is not None]),
-                                    str(inserted_ids)))
+                                    tmp_dup_count, str(inserted_ids)))
                             except Exception as e:
                                 current_app.logger.error('CrawlManager run() error: ', e)
             end = time.time()

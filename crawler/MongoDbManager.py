@@ -5,8 +5,6 @@ from flask import current_app
 
 import threading
 
-from crawler.constants import lessor_sex_dict, lesser_role_dict
-
 lock = threading.Lock()
 
 
@@ -28,11 +26,7 @@ class MongoDbManager:
         if cls.__instance is None:
             with lock:
                 if cls.__instance is None:
-                    cls.__client = pymongo.MongoClient(
-                        app.config.get('MONGODB_SERVER'),
-                        app.config.get('MONGODB_PORT'),
-                        serverSelectionTimeoutMS=2000
-                    )
+                    cls.__client = cls.get_client(app)
                     try:
                         app.logger.info(cls.__client.server_info())
                     except errors.ServerSelectionTimeoutError as err:
@@ -48,6 +42,16 @@ class MongoDbManager:
 
         return cls.__instance
 
+    def get_client(self, app):
+        if not self.__client:
+            return pymongo.MongoClient(
+                        app.config.get('MONGODB_SERVER'),
+                        app.config.get('MONGODB_PORT'),
+                        serverSelectionTimeoutMS=2000
+                    )
+        else:
+            return self.__client
+
     def _check_target_db(self, app):
         """
         thread function for check database existence, create if not exist
@@ -60,7 +64,7 @@ class MongoDbManager:
             app.logger.info('create db {} success: '.format(self.db_name))
         else:
             app.logger.info('db {} already exists: '.format(self.db_name))
-        self.__db = self.__client[app.config.get('MONGODB_DATABASE')]
+        self.__db = self.__client.get_database(app.config.get('MONGODB_DATABASE'))
 
     def _check_target_collection(self, app):
         """
@@ -74,7 +78,7 @@ class MongoDbManager:
             app.logger.info('create collection {} success: '.format(self.collection_name))
         else:
             app.logger.info('collection {} already exists: '.format(self.collection_name))
-        self.__collection = self.__db[self.collection_name]
+        self.__collection = self.__db.create_collection(self.collection_name)
 
     def update(self, houses, app):
         """
@@ -149,9 +153,6 @@ class MongoDbManager:
         except PyMongoError as e:
             current_app.logger.error('insert_many() error', e)
         return []
-
-    def get_client(self):
-        return self.__client
 
     def _query_by_id(self, house_id):
         cursor = self.__collection.find_one({'id': house_id})
