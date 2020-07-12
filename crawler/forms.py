@@ -57,13 +57,25 @@ class QueryForm(FlaskForm):
         '電話'
     )
 
-    price_upper = fields.IntegerField('租金上限', validators=[Optional(strip_whitespace=True)])
+    price_upper = fields.IntegerField(
+        '租金上限', validators=[
+            Optional(
+                strip_whitespace=True)])
 
-    price_lower = fields.IntegerField('租金下限', validators=[Optional(strip_whitespace=True)])
+    price_lower = fields.IntegerField(
+        '租金下限', validators=[
+            Optional(
+                strip_whitespace=True)])
 
-    area_upper = fields.IntegerField('坪數上限', validators=[Optional(strip_whitespace=True)])
+    area_upper = fields.IntegerField(
+        '坪數上限', validators=[
+            Optional(
+                strip_whitespace=True)])
 
-    area_lower = fields.IntegerField('坪數下限', validators=[Optional(strip_whitespace=True)])
+    area_lower = fields.IntegerField(
+        '坪數下限', validators=[
+            Optional(
+                strip_whitespace=True)])
 
     submit = fields.SubmitField('查詢')
 

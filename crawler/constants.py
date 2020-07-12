@@ -48,7 +48,7 @@ lesser_role_dict = {
     'unknown': '-1',
 }
 
-sex_requirement_dict = { # map to five9one website
+sex_requirement_dict = {  # map to five9one website
     'girl': '0',
     'boy': '1',
     'all_sex': '2',
