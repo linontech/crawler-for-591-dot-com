@@ -2,12 +2,12 @@ import mock
 import mongomock
 
 from app import app
-from crawler.CrawlManager import CrawlManager
-from crawler.MongoDbManager import MongoDbManager
+from app.CrawlManager import CrawlManager
+from app.MongoDbManager import MongoDbManager
 
 
-@mock.patch('crawler.MongoDbManager.get_client')
-@mock.patch('crawler.CrawlManager.CrawlManager._create_payloads')
+@mock.patch('app.MongoDbManager.get_client')
+@mock.patch('app.CrawlManager.CrawlManager._create_payloads')
 def test_should_insertion_operate_properly(
         mock_create_payloads, mock_get_client):
     mock_create_payloads.return_value = [{'is_new_list': '1',

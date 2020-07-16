@@ -4,9 +4,10 @@ from flask import (
     current_app,
     request,
     make_response)
-from crawler import MongoDbManager
-from crawler.CrawlManager import CrawlManager
-from crawler.forms import QueryForm
+
+from app.MongoDbManager import MongoDbManager
+from app.CrawlManager import CrawlManager
+from app.forms import QueryForm
 
 BP = Blueprint('root', __name__)
 
@@ -28,7 +29,7 @@ def start_crawl():
         message = crawl_manager.run()
         data = {'message': message, 'code': 'SUCCESS'}
     else:
-        data = {'message': 'crawler exists...', 'code': 'DUPLICATED'}
+        data = {'message': 'app exists...', 'code': 'DUPLICATED'}
     return make_response(data, 201)
 
 
@@ -67,3 +68,4 @@ def query():
         message = 'Fail to get MongoDBManager!'
         current_app.logger.info('/search : Error! ' + message)
         return make_response({'message': message, 'data': ''}, 201)
+

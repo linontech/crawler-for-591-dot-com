@@ -8,8 +8,8 @@ from json import JSONDecodeError
 from bs4 import BeautifulSoup
 from flask import current_app
 
-from crawler import MongoDbManager
-from crawler.constants import shape_dict, lesser_role_dict, sex_requirement_dict
+from app.MongoDbManager import MongoDbManager
+from app.settings.constants import shape_dict, lesser_role_dict, sex_requirement_dict
 
 lock = threading.Lock()
 
@@ -78,8 +78,7 @@ class CrawlManager(object):
                                 houses = future.result()
                                 houses = self._reconstruct_houses(
                                     houses, session, current_app._get_current_object())
-                                inserted_ids = self._save_to_mongo(
-                                    houses, current_app._get_current_object())
+                                inserted_ids = self._save_to_mongo(houses, current_app._get_current_object())
                             except Exception as e:
                                 current_app.logger.error(
                                     'CrawlManager run() error: ', e)

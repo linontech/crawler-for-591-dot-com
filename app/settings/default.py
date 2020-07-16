@@ -3,7 +3,7 @@ import os
 # Flask settings
 SECRET_KEY = os.urandom(32)
 
-# crawler settings
+# app settings
 PAGE_TITLE = "five9one"
 
 # mongo db address
@@ -20,6 +20,8 @@ FIVE9ONE_CSRF_TOKEN = ''
 POOL_CONNECTIONS_NUM = 500
 
 POOL_MAXSIZE_NUM = 500
+
+PARSE_INTERVAL_IN_SECONDS = 1800
 
 # config for crawl
 ROOT_URL = 'https://rent.591.com.tw'

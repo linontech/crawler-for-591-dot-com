@@ -1,6 +1,7 @@
 from flask_wtf import FlaskForm
 from wtforms import fields, widgets, validators
 from wtforms.validators import DataRequired, Optional
+from werkzeug.urls import url_encode
 
 
 class MultiCheckboxField(fields.SelectMultipleField):

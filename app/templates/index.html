@@ -41,7 +41,7 @@
                    $('.crawl_status').text('Status: ' + response.message);
                }).fail(function() {
                    console.log('start error');
-                   $('.crawl_status').text('Status: crawler encounter error.');
+                   $('.crawl_status').text('Status: app encounter error.');
                });
        });
        $('.stop_button').on('click', function(){
@@ -52,7 +52,7 @@
                    $('.crawl_status').text('Status: ' + response.message);
                }).fail(function() {
                    console.log('stop error');
-                   $('.crawl_status').text('Status: crawler encounter error when stopping.');
+                   $('.crawl_status').text('Status: app encounter error when stopping.');
                });
        });
        function submitForm() {
