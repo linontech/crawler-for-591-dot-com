@@ -128,29 +128,25 @@ class MongoDbManager:
         """
         parsed_patterns = {
             'price': {
-                '$lte': pattern.get(
-                    'price_upper',
-                    2 ** 31 - 1),
-                '$gte': pattern.get(
-                    'price_lower',
-                    0)},
+                '$lte': pattern.get('price_upper', 2 ** 31 - 1),
+                '$gte': pattern.get('price_lower', 0)},
             'area': {
-                '$lte': pattern.get(
-                    'area_upper',
-                    2 ** 31 - 1),
-                '$gte': pattern.get(
-                    'area_lower',
-                    0)}}
+                '$lte': pattern.get('area_upper', 2 ** 31 - 1),
+                '$gte': pattern.get('area_lower', 0)}
+        }
+        # TODO: handle KeyError Exception
+        pattern['lessor_sex'] = pattern.get('lessor_sex', '')
+        pattern['role_type'] = pattern.get('role_type', '')
+        pattern['tel'] = pattern.get('tel', '')
+        pattern['sex'] = pattern.get('sex', '')
+        pattern['regionid'] = pattern.get('regionid', '')
 
-        if pattern.get(
-            'linkman',
-                ''):  # if specify lessor name already, you just can't choose lessor's gender again
-            parsed_patterns['linkman.name'] = {
-                '$regex': '.*' + ''.join(pattern['linkman']) + '.*'}
+        # if specify lessor name already, you just can't choose lessor's gender again
+        if pattern.get('linkman', ''):
+            parsed_patterns['linkman.name'] = {'$regex': '.*' + ''.join(pattern['linkman']) + '.*'}
         else:
             if pattern['lessor_sex'] != '2':
                 parsed_patterns['linkman.sex'] = pattern['lessor_sex']
-
         if pattern['role_type'] != '3':
             parsed_patterns['linkman.role'] = pattern['role_type']
 
@@ -163,12 +159,9 @@ class MongoDbManager:
 
         parsed_patterns['regionid'] = pattern['regionid']
 
-        current_app.logger.info(
-            'Attempt searching with patterns: {}'.format(
-                str(parsed_patterns)))
-        cursor = self.__collection.find(parsed_patterns)
+        current_app.logger.info( 'Attempt searching with patterns: {}'.format(str(parsed_patterns)))
 
-        return cursor
+        return self.__collection.find(parsed_patterns)
 
     def insert(self, houses):
         """
@@ -199,7 +192,7 @@ class MongoDbManager:
     @staticmethod
     def _find_modified_pattern(house, house_in_db):
         """
-        todo: find modified pattern for compound fields
+        TODO: find modified pattern for compound fields
         """
         pattern = {}
         for key, value in house.items():

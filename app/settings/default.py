@@ -24,9 +24,9 @@ POOL_MAXSIZE_NUM = 500
 PARSE_INTERVAL_IN_SECONDS = 1800
 
 # config for crawl
-ROOT_URL = 'https://rent.591.com.tw'
-API_URL = ROOT_URL + '/home/search/rsList'
-WEB_URL_FORMAT_STR = ROOT_URL + '/rent-detail-{}.html'
+API_ROOT_URL = 'https://rent.591.com.tw'
+API_URL = API_ROOT_URL + '/home/search/rsList'
+WEB_URL_FORMAT_STR = API_ROOT_URL + '/rent-detail-{}.html'
 HEADERS = {
     'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
     'accept-encoding': 'gzip, deflate, br',
@@ -35,3 +35,8 @@ HEADERS = {
     'dnt': '1',
     'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/65.0.3325.146 Safari/537.36',
 }
+
+APP_DIR = os.path.dirname(__file__)
+ROOT_DIR = os.path.dirname(os.path.dirname(APP_DIR))
+DIST_DIR = os.path.join(ROOT_DIR, 'dist')
+

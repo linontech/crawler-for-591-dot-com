@@ -1,17 +1,28 @@
+import os
 import traceback
 import logging
 import logging.config
 from time import strftime
-from flask import Flask
+from flask import Flask, url_for
 from flask import current_app, request
 from datetime import datetime
+
+from flask_wtf import CSRFProtect
 
 from app.endpoints import BP as api_bp
 
 
 def create_app():
-    app_ = Flask(__name__)
+    app_ = Flask(__name__, template_folder='../dist', static_folder='../dist/static')
     app_.config.from_object('app.settings.default')
+    jinja_options = app_.jinja_options.copy()
+    jinja_options.update(
+        dict(variable_start_string='((', variable_end_string='))')
+    )
+    app_.jinja_options = jinja_options
+    app_.register_blueprint(api_bp)
+    csrf = CSRFProtect()
+    csrf.init_app(app_)
     return app_
 
 
@@ -29,7 +40,6 @@ def register_logging():
 
 
 app = create_app()
-app.register_blueprint(api_bp)
 logger = register_logging()
 
 

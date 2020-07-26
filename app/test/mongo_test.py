@@ -2,8 +2,8 @@ import mock
 import mongomock
 
 from app import app
-from app.CrawlManager import CrawlManager
-from app.MongoDbManager import MongoDbManager
+from app.crawl_manager import CrawlManager
+from app.mongodb_manager import MongoDbManager
 
 
 @mock.patch('app.MongoDbManager.get_client')

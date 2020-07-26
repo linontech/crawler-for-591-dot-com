@@ -1,5 +1,5 @@
 [[source]]
-url = "https://pypi.org/simple"
+url = "https://pypi.python.org/simple"
 verify_ssl = true
 name = "pypi"
 
@@ -11,8 +11,16 @@ WTForms = "==2.2.1"
 Flask = "==1.1.1"
 Flask-WTF = "==0.14.2"
 
-[dev-packages]
-pylint = "*"
-
 [requires]
 python_version = "3.7"
+gunicorn = "==19.7.1"
+flask-restplus = "*"
+python-dotenv = "*"
+flask = "*"
+
+[dev-packages]
+pylint = "*"
+pytest = "*"
+bumpversion = "*"
+pytest-sugar = "*"
+pytest-cov = "*"

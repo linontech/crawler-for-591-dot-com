@@ -1,4 +1,3 @@
-
 ### crawler for <https://rent.591.com.tw/>
 
 ### RESTful API
@@ -23,5 +22,3 @@ response:
 ```
 FLASK_ENV=development FLASK_APP=app.py pipenv run flask run -h "0.0.0.0" -p "8000" --debugger --reload
 ```
-
-

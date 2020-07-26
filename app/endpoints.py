@@ -1,3 +1,6 @@
+import json
+import os
+
 from flask import (
     Blueprint,
     render_template,
@@ -5,21 +8,17 @@ from flask import (
     request,
     make_response)
 
-from app.MongoDbManager import MongoDbManager
-from app.CrawlManager import CrawlManager
-from app.forms import QueryForm
+from app.mongodb_manager import MongoDbManager
+from app.crawl_manager import CrawlManager
+from app.query_form import QueryForm
 
-BP = Blueprint('root', __name__)
+BP = Blueprint(
+    'root', __name__, url_prefix='')
 
 
 @BP.route("/", methods=["GET"])
 def index():
-    form = QueryForm()
-    return render_template(
-        'index.html',
-        title=current_app.config.get('PAGE_TITLE'),
-        form=form,
-    )
+    return render_template('index.html', title=current_app.config.get('PAGE_TITLE'))
 
 
 @BP.route("/start", methods=["POST"])
@@ -45,19 +44,14 @@ def stop_crawl():
 @BP.route("/search", methods=["POST"])
 def query():
     payload = request.json or request.form
-    current_app.logger.info(
-        'the payload from frontend: {}'.format(str(payload.to_dict())))
-    form = QueryForm(request.form)
+    current_app.logger.info('the payload from frontend: {}'.format(str(payload)))
+    form = QueryForm()
     if not form.validate():
-        message = ''
-        for error, info in form.errors.items():
-            message += error + ': ' + str(info) + '\n'
-        current_app.logger.info(
-            'Error! form fields not valid! {}'.format(message))
+        message = '\n'.join([error + ': ' + str(info) for error, info in form.errors.items()])
+        current_app.logger.info('Error! form fields not valid! {}'.format(message))
         return make_response({'message': message, 'data': ''}, 201)
 
     manager = MongoDbManager.get_instance(current_app)
-
     if manager is not None and manager.get_client(current_app) is not None:
         data = manager.query_by_pattern(form.to_dict())
         length = data.count()

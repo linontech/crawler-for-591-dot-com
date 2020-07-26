@@ -8,7 +8,7 @@ from json import JSONDecodeError
 from bs4 import BeautifulSoup
 from flask import current_app
 
-from app.MongoDbManager import MongoDbManager
+from app.mongodb_manager import MongoDbManager
 from app.settings.constants import shape_dict, lesser_role_dict, sex_requirement_dict
 
 lock = threading.Lock()
