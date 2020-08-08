@@ -1,29 +1,11 @@
-import os
-import traceback
 import logging
 import logging.config
-from time import strftime
-from flask import Flask, url_for
-from flask import current_app, request
+from flask import Flask
 from datetime import datetime
 
 from flask_wtf import CSRFProtect
 
 from app.endpoints import BP as api_bp
-
-
-def create_app():
-    app_ = Flask(__name__, template_folder='../dist', static_folder='../dist/static')
-    app_.config.from_object('app.settings.default')
-    jinja_options = app_.jinja_options.copy()
-    jinja_options.update(
-        dict(variable_start_string='((', variable_end_string='))')
-    )
-    app_.jinja_options = jinja_options
-    app_.register_blueprint(api_bp)
-    csrf = CSRFProtect()
-    csrf.init_app(app_)
-    return app_
 
 
 def register_logging():
@@ -39,21 +21,14 @@ def register_logging():
     return logger_
 
 
-app = create_app()
-logger = register_logging()
+def create_app():
+    app_ = Flask(__name__, template_folder='../dist', static_folder='../dist/static')
+    app_.config.from_object('app.settings.default')
+    return app_
 
 
-@app.errorhandler(Exception)
-def exceptions(e):
-    """
-    Logging after every Exception.
-    """
-    ts = strftime('[%Y-%b-%d %H:%M]')
-    tb = traceback.format_exc()
-    current_app.logger.error('%s %s %s %s %s 5xx INTERNAL SERVER ERROR\n%s',
-                              ts,
-                              request.remote_addr,
-                              request.method,
-                              request.scheme,
-                              request.full_path,
-                              tb)
+def setup_app(app_):
+    app_.register_blueprint(api_bp)
+    csrf = CSRFProtect()
+    csrf.init_app(app_)
+    app_.logger = register_logging()

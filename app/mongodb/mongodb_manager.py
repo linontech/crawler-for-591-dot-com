@@ -18,7 +18,7 @@ class MongoDbManager:
         raise SyntaxError('can not instance, please use get_instance')
 
     @classmethod
-    def get_instance(cls, app):
+    def get_instance(cls):
         """
         thread function for get MongoDbManager instance
         :return: singleton
@@ -27,67 +27,67 @@ class MongoDbManager:
             with lock:
                 if cls.__instance is None:
                     cls.__instance = object.__new__(cls)
-                    cls.__client = cls.__instance.get_client(app)
+                    cls.__client = cls.__instance.get_client()
                     try:
-                        app.logger.info(cls.__client.server_info())
+                        current_app.logger.info(cls.__client.server_info())
                     except errors.ServerSelectionTimeoutError as err:
-                        app.logger.error(
+                        current_app.logger.error(
                             "Connection to MongoDB Error", stack_info=err)
                         cls.__client = None
                         return None
-                    cls.db_name = app.config.get('MONGODB_DATABASE')
-                    cls.collection_name = app.config.get('MONGODB_COLLECTION')
-                    cls.__instance._check_target_db(app)
-                    cls.__instance._check_target_collection(app)
+                    cls.db_name = current_app.config.get('MONGODB_DATABASE')
+                    cls.collection_name = current_app.config.get('MONGODB_COLLECTION')
+                    cls.__instance._check_target_db()
+                    cls.__instance._check_target_collection()
                     cls.__instance._create_index()
 
         return cls.__instance
 
-    def get_client(self, app):
+    def get_client(self):
         if not self.__client:
             return pymongo.MongoClient(
-                app.config.get('MONGODB_SERVER'),
-                app.config.get('MONGODB_PORT'),
+                current_app.config.get('MONGODB_SERVER'),
+                current_app.config.get('MONGODB_PORT'),
                 serverSelectionTimeoutMS=2000
             )
         else:
             return self.__client
 
-    def _check_target_db(self, app):
+    def _check_target_db(self):
         """
         thread function for check database existence, create if not exist
         """
         if self.__client is None:
-            app.logger.error('get mongodb client error: ')
+            current_app.logger.error('get mongodb client error: ')
             return None
         db_names = self.__client.list_database_names()
         if self.db_name not in db_names:
-            app.logger.info('create db {} success: '.format(self.db_name))
+            current_app.logger.info('create db {} success: '.format(self.db_name))
         else:
-            app.logger.info('db {} already exists: '.format(self.db_name))
+            current_app.logger.info('db {} already exists: '.format(self.db_name))
         self.__db = self.__client.get_database(
-            app.config.get('MONGODB_DATABASE'))
+            current_app.config.get('MONGODB_DATABASE'))
 
-    def _check_target_collection(self, app):
+    def _check_target_collection(self):
         """
         thread function for check collection existence, create if not exist
         """
         if self.__db is None:
-            app.logger.error('mongodb db {} not exist: '.format(self.db_name))
+            current_app.logger.error('mongodb db {} not exist: '.format(self.db_name))
             return None
         collections = self.__db.list_collection_names()
         if self.collection_name not in collections:
             self.__collection = self.__db.create_collection(self.collection_name)
-            app.logger.info(
+            current_app.logger.info(
                 'create collection {} success: '.format(
                     self.collection_name))
         else:
             self.__collection = self.__db.get_collection(self.collection_name)
-            app.logger.info(
+            current_app.logger.info(
                 'collection {} already exists: '.format(
                     self.collection_name))
 
-    def update(self, houses, app):
+    def update(self, houses):
         """
         thread function for inserting houses
         :param houses: houses records
@@ -100,8 +100,7 @@ class MongoDbManager:
             if house_in_db:
                 # app.logger.info('Found duplicate id {}, replace old data.'.format(house['id']))
                 existed_id = str(house_in_db['_id'])
-                modified_fields = self._find_modified_pattern(
-                    house, house_in_db)
+                modified_fields = self._find_modified_pattern(house, house_in_db)
                 if modified_fields:
                     response = self.__collection.update_one(
                         {'_id': house_in_db['_id']}, {'$set': modified_fields})
@@ -114,8 +113,7 @@ class MongoDbManager:
                 if response.matched_count > 0:
                     res.append('new-' + house['id'] + '-conflict')
                 else:
-                    res.append('new-' + house['id'] +
-                               '-' + str(response.upserted_id))
+                    res.append('new-' + house['id'] + '-' + str(response.upserted_id))
 
         return res
 
@@ -143,23 +141,23 @@ class MongoDbManager:
 
         # if specify lessor name already, you just can't choose lessor's gender again
         if pattern.get('linkman', ''):
-            parsed_patterns['linkman.name'] = {'$regex': '.*' + ''.join(pattern['linkman']) + '.*'}
+            # parsed_patterns['linkman.name'] = {'$regex': '.*' + ''.join(pattern['linkman']) + '.*'}
+            pass
         else:
-            if pattern['lessor_sex'] != '2':
+            if pattern['lessor_sex'] != '2' and pattern['lessor_sex']:
                 parsed_patterns['linkman.sex'] = pattern['lessor_sex']
-        if pattern['role_type'] != '3':
+        if pattern['role_type'] != '3' and pattern['role_type']:
             parsed_patterns['linkman.role'] = pattern['role_type']
 
         if pattern['tel'] != '':
-            parsed_patterns['tel'] = {
-                '$regex': '.*' + ''.join(pattern['tel']) + '.*'}
+            parsed_patterns['tel'] = {'$regex': '.*' + ''.join(pattern['tel']) + '.*'}
 
-        if pattern['sex'] != '2':  # match patterns in constants.py
+        if pattern['sex'] != '2' and pattern['sex']:  # match patterns in constants.py
             parsed_patterns['sex_requirement'] = pattern['sex']
 
         parsed_patterns['regionid'] = pattern['regionid']
 
-        current_app.logger.info( 'Attempt searching with patterns: {}'.format(str(parsed_patterns)))
+        current_app.logger.info('Attempt searching with patterns: {}'.format(str(parsed_patterns)))
 
         return self.__collection.find(parsed_patterns)
 

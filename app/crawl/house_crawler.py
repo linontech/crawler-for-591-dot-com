@@ -1,31 +1,29 @@
 import concurrent.futures
+import re
 import threading
 import time
-import re
 import requests
-from requests.adapters import HTTPAdapter
-from json import JSONDecodeError
 from bs4 import BeautifulSoup
 from flask import current_app
+from json import JSONDecodeError
 
-from app.mongodb_manager import MongoDbManager
-from app.settings.constants import shape_dict, lesser_role_dict, sex_requirement_dict
+from app.crawl.crawl_manager import CrawlManager
+from app.mongodb.mongodb_manager import MongoDbManager
+from app.crawl import shape_dict, sex_requirement_dict, lesser_role_dict
 
 lock = threading.Lock()
 
 
-class CrawlManager(object):
-    DELAY = 0.6
-    MAX_WORKERS = 10
-    DEFAULT_PAYLOAD = {
-        'is_new_list': '1',
-        'type': '1',
-        'kind': '0',
-        'searchtype': 1}
-    ATTEMPT_STOP = False
-    RUNNING = False
+class HouseCrawler(CrawlManager):
     __instance = None
     duplicate_count = 0
+    DEFAULT_PAYLOAD = \
+        {
+            'is_new_list': '1',
+            'type': '1',
+            'kind': '0',
+            'searchtype': 1
+        }
 
     def __init__(self):
         raise SyntaxError('can not instance, please use get_instance')
@@ -39,80 +37,8 @@ class CrawlManager(object):
             with lock:
                 if cls.__instance is None:
                     cls.__instance = object.__new__(cls)
-
+                    cls.__instance.duplicate_count = 0
         return cls.__instance
-
-    def run(self):
-        """
-        CrawlManager multi-thread
-        :return: message
-        """
-        self.duplicate_count = 0
-        payloads = self._create_payloads()
-        current_app.logger.info(
-            f'CrawlManager run() is going to make {len(payloads)} requests. ')
-        if not self.RUNNING:
-            start = time.time()
-            self.ATTEMPT_STOP, self.RUNNING = False, True
-            with concurrent.futures.ThreadPoolExecutor(thread_name_prefix='MyCrawler',
-                                                       max_workers=self.MAX_WORKERS) as executor:
-                for index in range(0, len(payloads), self.MAX_WORKERS):
-                    if self.ATTEMPT_STOP:
-                        end = time.time()
-                        current_app.logger.info(
-                            f'CrawlManager run() stopped by user, spent: {end - start} seconds. ')
-                        self.RUNNING = False
-                        return 'stopped'
-                    with requests.Session() as session:
-                        session.mount(
-                            'https://',
-                            HTTPAdapter(
-                                pool_connections=current_app.config.get('POOL_CONNECTIONS_NUM'),
-                                pool_maxsize=current_app.config.get('POOL_MAXSIZE_NUM')))
-                        self._set_csrf_token(session)
-                        futures = [
-                            executor.submit(self._get_houses, payload, session, current_app._get_current_object())
-                            for payload in payloads[index: index + self.MAX_WORKERS]]
-                        for future in concurrent.futures.as_completed(futures):
-                            try:
-                                houses = future.result()
-                                houses = self._reconstruct_houses(
-                                    houses, session, current_app._get_current_object())
-                                inserted_ids = self._save_to_mongo(houses, current_app._get_current_object())
-                            except Exception as e:
-                                current_app.logger.error(
-                                    'CrawlManager run() error: ', e)
-
-                            tmp_dup_count = len(
-                                [inserted_id for inserted_id in inserted_ids if inserted_id.startswith('duplicate')])
-                            self.duplicate_count += tmp_dup_count
-                            current_app.logger.info(
-                                '{} records crawled and saved into MongoDB. {} '.format(
-                                    tmp_dup_count, str(inserted_ids)))
-            end = time.time()
-            current_app.logger.info(
-                f'CrawlManager run() done spent: {end - start} seconds. ')
-            self.RUNNING = False
-
-        return 'finished'
-
-    def stop(self):
-        """
-        stop function
-        :return: true for successful stopped
-        """
-        if not self.RUNNING:
-            return False
-        while self.RUNNING:
-            self.ATTEMPT_STOP = True
-        return True
-
-    def is_running(self):
-        """
-        check status of CrawlManager
-        :return: status
-        """
-        return self.RUNNING
 
     def _create_payloads(self):
         """
@@ -134,13 +60,32 @@ class CrawlManager(object):
 
         return payloads
 
+    def job(self, payload, session, app):
+        self.duplicate_count = 0
+        return self._get_houses(payload, session, app)
+
+    def call_back_function(self, future, session):
+        tmp_dup_count, inserted_ids = 0, []
+        try:
+            houses = future.result()
+            houses = self._reconstruct_houses(houses, session, current_app._get_current_object())
+            inserted_ids = self._save_to_mongo(houses, current_app._get_current_object())
+            tmp_dup_count = len(
+                [inserted_id for inserted_id in inserted_ids if inserted_id.startswith('duplicate')])
+        except Exception as e:
+            current_app.logger.error('CrawlManager run() error: ', e)
+
+        self.duplicate_count += tmp_dup_count
+        current_app.logger.info(
+            '{} records crawled and saved into MongoDB. {} '.format(
+                tmp_dup_count, str(inserted_ids)))
+
     def _get_houses_nums(self, payload):
         """
         :param payload:
         :return:
         """
-        current_app.logger.info(
-            'get_houses_nums() payload: {}'.format(payload))
+        current_app.logger.info('get_houses_nums() payload: {}'.format(payload))
         response, num = None, 0
         try:
             session = requests.Session()
@@ -153,15 +98,13 @@ class CrawlManager(object):
                 num = int(response.json()['records'].replace(',', ''))
             else:
                 current_app.logger.info(
-                    'get_houses_nums() Request fail with http status code = {}'.format(
-                        response.status_code))
+                    'get_houses_nums() Request fail with http status code = {}'.format(response.status_code))
         except requests.exceptions.RequestException as e:
             current_app.logger.error('get_houses_nums() Http Error: ', e)
         except KeyError as e:
             current_app.logger.error(
                 'get_houses_nums() KeyError Cannot get data from tel[0]["data-value"]: {}'.format(
-                    response.text.replace(
-                        '\n', '')), e)
+                    response.text.replace('\n', '')), e)
         except JSONDecodeError as e:
             current_app.logger.error('get_houses_nums() JSONDecodeError', e)
         finally:
@@ -175,29 +118,22 @@ class CrawlManager(object):
         :param app:
         :return:
         """
-        app.logger.info(
-            'get_houses() request sending payload: {}'.format(payload))
+        app.logger.info('get_houses() request sending payload: {}'.format(payload))
 
         response = None
         houses, data = [], {}
         try:
-            response = session.get(
-                app.config.get('API_URL'),
-                params=payload,
-                headers=app.config.get('HEADERS'))
+            response = session.get(app.config.get('API_URL'), params=payload, headers=app.config.get('HEADERS'))
             if response.status_code == 200:
                 data = response.json()['data']
             else:
-                app.logger.error(
-                    'get_houses() Request fail with http status code = {}, {}'.format(
+                app.logger.error('get_houses() Request fail with http status code = {}, {}'.format(
                         response.status_code, str(payload)))
         except requests.exceptions.RequestException as e:
             app.logger.error('get_houses() Http Error: ', e)
         except KeyError as e:
-            app.logger.error(
-                'get_houses() KeyError Cannot get data from response.json["data"]: {}'.format(
-                    response.text.replace(
-                        '\n', '')), e)
+            app.logger.error('get_houses() KeyError Cannot get data from response.json["data"]: {}'.format(
+                response.text.replace('\n', '')), e)
         except JSONDecodeError as e:
             app.logger.error('get_houses() JSONDecodeError', e)
         except Exception as e:
@@ -206,24 +142,6 @@ class CrawlManager(object):
             houses = data.get('data', [])
         finally:
             return houses
-
-    def _set_csrf_token(self, session):
-        """
-
-        :param session:
-        :return:
-        """
-        r = session.get(current_app.config.get('ROOT_URL'))
-        soup = BeautifulSoup(r.text, 'html.parser')
-        for tag in soup.select('meta'):
-            if tag.get('name', None) == 'csrf-token':
-                csrf_token = tag.get('content')
-                session.headers = current_app.config.get('HEADERS')
-                session.headers['X-CSRF-TOKEN'] = csrf_token
-                current_app.logger.info(f'Found csrf-token ' + csrf_token)
-                break
-        else:
-            current_app.logger.info(f'No csrf-token found')
 
     def _get_tel(self, house, session, app):
         """
@@ -245,39 +163,33 @@ class CrawlManager(object):
                     if len(val) == 1:
                         tel = val[0]['data-value'].replace('-', '')
                     else:
-                        app.logger.info(
-                            '_get_tel() No tel found on {}.'.format(url))
+                        app.logger.info('_get_tel() No tel found on {}.'.format(url))
                     break
                 else:
                     app.logger.info(
-                        '_get_tel() on {} Request fail with http status code = {}, retrying ... left {}' .format(
+                        '_get_tel() on {} Request fail with http status code = {}, retrying ... left {}'.format(
                             url, response.status_code, retry))
                     retry -= 1
                     continue
             except requests.exceptions.ConnectionError as e:
                 app.logger.error(
-                    '_get_tel() on {} , retrying ... left {}, ConnectionError {}'.format(
-                        url, retry, e))
+                    '_get_tel() on {} , retrying ... left {}, ConnectionError {}'.format(url, retry, e))
                 retry -= 1
             except requests.exceptions.RequestException as e:
                 app.logger.error(
-                    '_get_tel() on {}, RequestException: {}'.format(
-                        url, e))
+                    '_get_tel() on {}, RequestException: {}'.format(url, e))
             except KeyError as e:
                 app.logger.error(
                     '_get_tel() on {}, KeyError Cannot get data from tel[0]["data-value"]: {}'.format(
-                        url, response.text.replace(
-                            '\n', '')), e)
+                        url, response.text.replace('\n', '')), e)
             except JSONDecodeError as e:
                 app.logger.error(
-                    '_get_tel() on {}, JSONDecodeError {}'.format(
-                        url, e))
+                    '_get_tel() on {}, JSONDecodeError {}'.format(url, e))
             finally:
                 if 0 < retry < 3 and tel != '':
                     app.logger.info('_get_tel() retried success')
                 if retry == 0:
-                    app.logger.error(
-                        '_get_tel() retried 3 times still failed.')
+                    app.logger.error('_get_tel() retried 3 times still failed.')
 
         return tel
 
@@ -294,11 +206,8 @@ class CrawlManager(object):
         with concurrent.futures.ThreadPoolExecutor(thread_name_prefix='HousesWorker',
                                                    max_workers=len(houses)) as executor:
             futures = [
-                executor.submit(
-                    self._reconstruct_house,
-                    house,
-                    session,
-                    app) for house in houses]
+                executor.submit(self._reconstruct_house, house, session, app) for house in houses
+            ]
             for future in concurrent.futures.as_completed(futures):
                 try:
                     new_house = future.result()
@@ -307,8 +216,7 @@ class CrawlManager(object):
                 else:
                     new_houses.append(new_house)
         end = time.time()
-        app.logger.info(
-            f'_reconstruct_houses() done spent: {end - start} seconds')
+        app.logger.info(f'_reconstruct_houses() done spent: {end - start} seconds')
 
         return new_houses
 
@@ -429,9 +337,9 @@ class CrawlManager(object):
         :param houses: list of house
         :return: inserted ids
         """
-        manager = MongoDbManager.get_instance(app)
+        manager = MongoDbManager.get_instance()
         if manager is not None:
-            res = manager.update(houses, app)
+            res = manager.update(houses)
             return res
         else:
             return []

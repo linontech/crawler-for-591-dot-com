@@ -1,6 +1,3 @@
-import json
-import os
-
 from flask import (
     Blueprint,
     render_template,
@@ -8,8 +5,9 @@ from flask import (
     request,
     make_response)
 
-from app.mongodb_manager import MongoDbManager
-from app.crawl_manager import CrawlManager
+from app.crawl.house_crawler import HouseCrawler
+from app.mongodb.mongodb_manager import MongoDbManager
+from app.crawl.crawl_manager import CrawlManager
 from app.query_form import QueryForm
 
 BP = Blueprint(
@@ -23,18 +21,18 @@ def index():
 
 @BP.route("/start", methods=["POST"])
 def start_crawl():
-    crawl_manager = CrawlManager.get_instance()
+    crawl_manager = HouseCrawler.get_instance()
     if not crawl_manager.is_running():
         message = crawl_manager.run()
         data = {'message': message, 'code': 'SUCCESS'}
     else:
-        data = {'message': 'app exists...', 'code': 'DUPLICATED'}
+        data = {'message': 'crawler already exists...', 'code': 'DUPLICATED'}
     return make_response(data, 201)
 
 
 @BP.route("/stop", methods=["POST"])
 def stop_crawl():
-    crawl_manager = CrawlManager.get_instance()
+    crawl_manager = HouseCrawler.get_instance()
     if crawl_manager.stop():
         return make_response({'message': 'stopped.'}, 201)
     else:
@@ -51,8 +49,8 @@ def query():
         current_app.logger.info('Error! form fields not valid! {}'.format(message))
         return make_response({'message': message, 'data': ''}, 201)
 
-    manager = MongoDbManager.get_instance(current_app)
-    if manager is not None and manager.get_client(current_app) is not None:
+    manager = MongoDbManager.get_instance()
+    if manager is not None and manager.get_client() is not None:
         data = manager.query_by_pattern(form.to_dict())
         length = data.count()
         current_app.logger.info('/search : Found {} records. '.format(length))

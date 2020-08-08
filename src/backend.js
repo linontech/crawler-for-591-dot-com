@@ -2,7 +2,7 @@ import axios from 'axios'
 
 const api = axios.create({
   baseURL: '/',
-  timeout: 5000,
+  // timeout: 5000,
   headers: {
     'Content-Type': 'application/json',
     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
@@ -26,15 +26,15 @@ api.interceptors.response.use(function (response) {
 
 export default {
   startCrawling () {
-    return api.get(`start`)
+    return api.post('start')
       .then(response => response.data)
   },
   stopCrawling () {
-    return api.get(`stop`)
+    return api.post('stop')
       .then(response => response.data)
   },
   queryRecords (payload) {
-    return api.post(`search`, payload)
+    return api.post('search', payload)
       .then(response => response.data)
   }
 }

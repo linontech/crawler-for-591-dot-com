@@ -7,10 +7,8 @@
 
     <form class='search' method='POST' action='/search' @submit.prevent="submitForm($data)">
       <div class="form-group">
-        <label for="townIndex">Town</label>
-        <customized-select type="text" id="townIndex" name="townIndex" v-model="townIndex" :data-source="towns"/>
-        <label for="areaid">Area</label>
-        <customized-select type="text" id="areaid" name="areaid" v-model="areaIndex" :data-source="areas"/>
+        <label for="regionIndex"> Region </label>
+        <customized-select type="text" id="regionIndex" name="regionIndex" v-model="regionIndex" :data-source="regions"/>
       </div>
 <!--      {{ zip }}-->
       <div class="form-footer">
@@ -50,27 +48,21 @@ export default {
   },
   data () {
     return {
-      townIndex: 0, // townIndex
-      areaIndex: 0
+      regionid: Cities[0].regionid,
+      regionIndex: 0
     }
   },
   computed: {
-    towns: function () {
+    regions: function () {
       return Cities.map(x => x.name)
-    },
-    areas: function () {
-      return Cities[this.townIndex].areas.map(x => x.name)
-    },
-    zip: function () {
-      return Cities[this.townIndex].areas[this.areaIndex].zip
-    },
-    regionid: function () {
-      return Cities[this.townIndex].regionid
-    } // TODO: how to dynamic get regionid
+    }
+    /// regionid: function () {
+    //  return Cities[this.regionIndex].regionid
+    // } // TODO: how to dynamic get regionid
   },
   watch: {
-    townIndex: function () {
-      this.areaIndex = 0
+    regionIndex: function () {
+      this.regionid = Cities[this.regionIndex].regionid
     }
   },
   created () {

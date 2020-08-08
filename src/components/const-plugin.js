@@ -1,31 +1,32 @@
 
 // TODO: get id mappings from 591, save it at backend and load into vue. Use backups if not loaded.
 const Cities = [
-  {
-    name: '台北市',
-    regionid: 0,
-    areas: [
-      { name: '中正區', sectionid: 3, zip: '300' },
-      { name: '大安區', sectionid: 5, zip: '304' },
-      { name: '信義區', sectionid: 7, zip: '306' },
-      { name: '士林區', sectionid: 8, zip: '307' },
-      { name: '內湖區', sectionid: 10, zip: '309' },
-      { name: '中山區', sectionid: 1, zip: '302' },
-      { name: '松山區', sectionid: 4, zip: '303' },
-      { name: '大同區', sectionid: 2, zip: '301' },
-      { name: '萬華區', sectionid: 6, zip: '305' },
-      { name: '文山區', sectionid: 12, zip: '311' },
-      { name: '北投區', sectionid: 9, zip: '308' },
-      { name: '南港區', sectionid: 11, zip: '310' }
-    ]
-  },
-  {
-    name: '新北市',
-    regionid: 2,
-    areas: [
-      { name: '新竹市', zip: '400' }
-    ]
-  }
+  { 'regionid': '1', 'name': '台北市' },
+  { 'regionid': '2', 'name': '基隆市' },
+  { 'regionid': '3', 'name': '新北市' },
+  { 'regionid': '4', 'name': '新竹市' },
+  { 'regionid': '5', 'name': '新竹縣' },
+  { 'regionid': '6', 'name': '桃園市' },
+  { 'regionid': '7', 'name': '苗栗縣' },
+  { 'regionid': '8', 'name': '台中市' },
+  { 'regionid': '9', 'name': '縣市-9' },
+  { 'regionid': '10', 'name': '彰化縣' },
+  { 'regionid': '11', 'name': '南投縣' },
+  { 'regionid': '12', 'name': '嘉義市' },
+  { 'regionid': '13', 'name': '嘉義縣' },
+  { 'regionid': '14', 'name': '雲林縣' },
+  { 'regionid': '15', 'name': '台南市' },
+  { 'regionid': '16', 'name': '縣市-16' },
+  { 'regionid': '17', 'name': '高雄市' },
+  { 'regionid': '18', 'name': '縣市-18' },
+  { 'regionid': '19', 'name': '屏東縣' },
+  { 'regionid': '20', 'name': '縣市-20' },
+  { 'regionid': '21', 'name': '宜蘭縣' },
+  { 'regionid': '22', 'name': '台東縣' },
+  { 'regionid': '23', 'name': '花蓮縣' },
+  { 'regionid': '24', 'name': '澎湖縣' },
+  { 'regionid': '25', 'name': '金門縣' },
+  { 'regionid': '26', 'name': '連江縣' }
 ]
 
 // Cities.install = function (Vue) {
